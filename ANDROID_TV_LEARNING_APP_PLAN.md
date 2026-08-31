@@ -4,7 +4,7 @@
 >
 > 本文件是 `mia_chinese` 的產品與實作規格。它包含原始需求，以及本次 review 補強的播放器風險、非同步狀態、內容更新、穩定 ID、生命週期與「繼續上次進度」流程。
 >
-> **目前狀態（v0.1.16 / versionCode 17）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；API 28 baseline 的 YouTube WebView 仍未通過通用 Go/No-Go，但目前 build 會先嘗試 WebView，失敗時提供 SmartTube／系統外部播放器 fallback。PDF 已加入 TV WebView 實驗頁與手機 QR code；真實目標 TV、媒體搬遷與家長功能仍是後續工作。
+> **目前狀態（v0.1.17 / versionCode 18）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；API 28 baseline 的 YouTube WebView 仍未通過通用 Go/No-Go，YouTube 播放方式可在設定頁選擇 WebView 或 SmartTube／系統外部播放器。PDF 已加入 TV WebView 實驗頁與手機 QR code；真實目標 TV、媒體搬遷與家長功能仍是後續工作。
 
 ## 0. Repository 與工作約定
 
@@ -12,7 +12,7 @@
 
 - Git remote：`git@github.com:victorchentw/mia_chinese.git`
 - 本機 canonical working tree：`/mnt/ssd/mia_chinese`
-- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.16` 進行 release hardening。
+- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.17` 進行 release hardening。
 - 本文件應放在 repository root：`ANDROID_TV_LEARNING_APP_PLAN.md`。
 - 每個 Phase 完成一個可編譯、可驗收的 commit；沒有明確要求時不自動 push。
 
@@ -564,7 +564,7 @@ enum class PlayerEvent {
 - WebView 設定只開啟播放所需能力；限制 navigation、file access、任意外部 URL 與 bridge 暴露的方法。
 - YouTube 廣告、登入限制、影片下架、禁止嵌入、年齡／地區限制都可能使 MVP 失敗；不得嘗試繞過。
 - Android WebView provider 由系統選擇；只有在 Android TV／Google TV 的系統映像、Play Store 與 provider 支援更新時才能安裝新版，App 不應自行下載或強制切換 provider。設定頁顯示目前 provider／版本，供 spike 記錄。
-- WebView 失敗時提供明確的 `開啟外部播放器` action；優先尋找 SmartTube stable／beta package，再交給系統 YouTube／瀏覽器。這只是標準 `ACTION_VIEW` deep link，不擷取串流、不繞過限制，且外部播放秒數無法同步回 Room。
+- 外部播放方式由設定頁選擇；優先尋找 SmartTube stable／beta package，再交給系統 YouTube／瀏覽器。這只是標準 `ACTION_VIEW` deep link，不擷取串流、不繞過限制，且外部播放秒數無法同步回 Room。
 
 ### 7.5 YouTube non-blocking progress
 

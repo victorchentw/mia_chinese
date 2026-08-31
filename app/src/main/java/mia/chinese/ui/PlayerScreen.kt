@@ -54,6 +54,8 @@ import mia.chinese.data.ProgressStatus
 import mia.chinese.model.VideoLocation
 import mia.chinese.playback.PlaybackPolicy
 import mia.chinese.playback.PlayerInputAction
+import mia.chinese.playback.YoutubePlaybackMode
+import mia.chinese.playback.launchExternalYouTube
 import mia.chinese.playback.TvMediaSession
 import mia.chinese.playback.seekPosition
 import mia.chinese.playback.PlayerInputController
@@ -67,6 +69,7 @@ fun PlayerScreen(
     location: VideoLocation,
     startPositionMs: Long,
     progressRepository: ProgressRepository,
+    youtubePlaybackMode: YoutubePlaybackMode,
     onBack: () -> Unit
 ) {
     when {
@@ -77,6 +80,9 @@ fun PlayerScreen(
                 progressRepository = progressRepository,
                 onBack = onBack
             )
+        }
+        location.video.isYouTube && youtubePlaybackMode == YoutubePlaybackMode.EXTERNAL -> {
+            ExternalYouTubeScreen(location = location, onBack = onBack)
         }
         location.video.isYouTube && PlaybackPolicy.youtubeEnabled && !location.video.videoId.isNullOrBlank() -> {
             YouTubePlayerScreen(
@@ -91,19 +97,55 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun UnsupportedPlayerScreen(
+private fun ExternalYouTubeScreen(
     location: VideoLocation,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val backRequester = remember { FocusRequester() }
-    val externalRequester = remember { FocusRequester() }
-    var externalMessage by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        runCatching {
-            if (location.video.isYouTube) externalRequester.requestFocus() else backRequester.requestFocus()
+    var launchMessage by remember(location.video.id) { mutableStateOf("正在開啟外部播放器…") }
+
+    LaunchedEffect(location.video.id) {
+        val result = launchExternalYouTube(context, location.video.videoId.orEmpty())
+        launchMessage = result.message
+        runCatching { backRequester.requestFocus() }
+    }
+
+    BackHandler(enabled = true, onBack = onBack)
+    ScreenFrame {
+        ScreenHeader(
+            title = "外部播放",
+            subtitle = location.section.title,
+            onBack = onBack,
+            backFocusRequester = backRequester
+        )
+        TvPanel(modifier = Modifier.padding(top = 30.dp).width(720.dp)) {
+            Text("播放方式：外部播放器", style = MaterialTheme.typography.h5)
+            Text(
+                "YouTube 已交給 SmartTube／系統 YouTube／瀏覽器播放。外部播放器不會回報 App 內播放進度。",
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            Text(
+                launchMessage,
+                style = MaterialTheme.typography.body2,
+                color = MaterialTheme.colors.secondary,
+                modifier = Modifier.padding(top = 12.dp)
+            )
         }
     }
+}
+
+@Composable
+private fun UnsupportedPlayerScreen(
+    location: VideoLocation,
+    onBack: () -> Unit
+) {
+    val backRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        runCatching { backRequester.requestFocus() }
+    }
+    BackHandler(enabled = true, onBack = onBack)
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -115,43 +157,18 @@ private fun UnsupportedPlayerScreen(
             Text("影片目前無法播放", style = MaterialTheme.typography.h5)
             Text(
                 if (location.video.isYouTube) {
-                    "${location.section.title} 使用 YouTube 來源；目前尚未通過目標設備 Go/No-Go。"
+                    "${location.section.title} 使用 YouTube 來源；請返回首頁，在設定選擇播放方式。"
                 } else {
                     "${location.section.title} 沒有可用的影片來源。"
                 },
                 style = MaterialTheme.typography.body1,
                 modifier = Modifier.padding(top = 12.dp)
             )
-            if (location.video.isYouTube) {
-                TvAction(
-                    onClick = {
-                        val result = mia.chinese.playback.launchExternalYouTube(
-                            context,
-                            location.video.videoId.orEmpty()
-                        )
-                        externalMessage = result.message
-                    },
-                    focusRequester = externalRequester,
-                    modifier = Modifier
-                        .padding(top = 24.dp)
-                        .fillMaxWidth()
-                ) {
-                    Text("開啟 SmartTube／外部播放器")
-                }
-                externalMessage?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.body2,
-                        color = MaterialTheme.colors.secondary,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
-                }
-            }
             TvAction(
                 onClick = onBack,
                 focusRequester = backRequester,
                 modifier = Modifier
-                    .padding(top = 12.dp)
+                    .padding(top = 24.dp)
                     .fillMaxWidth()
             ) {
                 Text("返回課程")
@@ -498,8 +515,7 @@ internal fun PlayerOverlay(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onRetry: () -> Unit,
-    onBack: () -> Unit,
-    onOpenExternal: (() -> Unit)? = null
+    onBack: () -> Unit
 ) {
     val compact = LocalConfiguration.current.screenHeightDp <= 600
     Box(
@@ -571,14 +587,6 @@ internal fun PlayerOverlay(
                         modifier = Modifier.width(if (compact) 140.dp else 170.dp)
                     ) {
                         Text("重新嘗試")
-                    }
-                }
-                onOpenExternal?.let { openExternal ->
-                    TvAction(
-                        onClick = openExternal,
-                        modifier = Modifier.width(if (compact) 170.dp else 220.dp)
-                    ) {
-                        Text("外部播放")
                     }
                 }
                 Spacer(Modifier.weight(1f))

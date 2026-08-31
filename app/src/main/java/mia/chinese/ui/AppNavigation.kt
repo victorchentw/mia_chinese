@@ -71,8 +71,8 @@ import mia.chinese.model.Edition
 import mia.chinese.model.Section
 import mia.chinese.model.VideoLocation
 import mia.chinese.playback.PlaybackPolicy
+import mia.chinese.playback.YoutubePlaybackMode
 import mia.chinese.playback.clampPosition
-import mia.chinese.playback.launchExternalYouTube
 import mia.chinese.model.attachmentSections
 import mia.chinese.model.findAttachment
 import mia.chinese.model.findCourse
@@ -110,6 +110,7 @@ fun MiaChineseApp(application: ChineseLearningApp) {
     val pointer by viewModel.lastResumePointer.collectAsState()
     val catalogLocation by viewModel.lastCatalogLocation.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
+    val youtubePlaybackMode by application.playbackSettings.youtubePlaybackMode.collectAsState()
 
     MiaChineseTheme {
         when (val state = catalogState) {
@@ -126,6 +127,8 @@ fun MiaChineseApp(application: ChineseLearningApp) {
                 progressRepository = application.progressRepository,
                 catalogRepository = application.catalogRepository,
                 syncState = syncState,
+                youtubePlaybackMode = youtubePlaybackMode,
+                onYoutubePlaybackModeChange = application.playbackSettings::setYoutubePlaybackMode,
                 onReloadCatalog = viewModel::retry,
                 onSyncCatalog = viewModel::syncCatalog
             )
@@ -142,6 +145,8 @@ private fun CatalogNavigation(
     progressRepository: ProgressRepository,
     catalogRepository: CatalogRepository,
     syncState: CatalogSyncState,
+    youtubePlaybackMode: YoutubePlaybackMode,
+    onYoutubePlaybackModeChange: (YoutubePlaybackMode) -> Unit,
     onReloadCatalog: () -> Unit,
     onSyncCatalog: () -> Unit
 ) {
@@ -202,6 +207,8 @@ private fun CatalogNavigation(
             SettingsScreen(
                 metadata = catalogRepository.cachedMetadata(),
                 syncState = syncState,
+                youtubePlaybackMode = youtubePlaybackMode,
+                onYoutubePlaybackModeChange = onYoutubePlaybackModeChange,
                 onBack = { navController.popBackStack() },
                 onReloadCatalog = onReloadCatalog,
                 onSyncCatalog = onSyncCatalog
@@ -249,7 +256,6 @@ private fun CatalogNavigation(
                     course = course,
                     progress = progress,
                     catalogLocation = catalogLocation,
-                    progressRepository = progressRepository,
                     onBack = { navController.popBackStack() },
                     onOpenVideo = { location, start -> openPlayer(location, start) },
                     onRestartVideo = { location -> openPlayer(location, 0L) },
@@ -312,6 +318,7 @@ private fun CatalogNavigation(
                     location = location,
                     startPositionMs = start,
                     progressRepository = progressRepository,
+                    youtubePlaybackMode = youtubePlaybackMode,
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -382,20 +389,52 @@ private fun MissingContentScreen(onBack: () -> Unit) {
 private fun SettingsScreen(
     metadata: CatalogMetadata?,
     syncState: CatalogSyncState,
+    youtubePlaybackMode: YoutubePlaybackMode,
+    onYoutubePlaybackModeChange: (YoutubePlaybackMode) -> Unit,
     onBack: () -> Unit,
     onReloadCatalog: () -> Unit,
     onSyncCatalog: () -> Unit
 ) {
-    val requester = remember { FocusRequester() }
+    val playbackRequester = remember { FocusRequester() }
+    val reloadRequester = remember { FocusRequester() }
     val webViewVersion = remember {
         WebView.getCurrentWebViewPackage()?.let { packageInfo ->
             "${packageInfo.packageName} ${packageInfo.versionName ?: "unknown"}"
         } ?: "未回報"
     }
-    LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
+    LaunchedEffect(Unit) { runCatching { playbackRequester.requestFocus() } }
     ScreenFrame {
         ScreenHeader(title = "設定", onBack = onBack)
         TvPanel(modifier = Modifier.padding(top = 30.dp).fillMaxWidth()) {
+            Text("YouTube 播放方式", style = MaterialTheme.typography.h6)
+            Text(
+                "選擇後，開啟 YouTube 課程時會直接使用指定方式；外部播放器不會回報 App 內播放進度。",
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            TvAction(
+                onClick = {
+                    onYoutubePlaybackModeChange(
+                        if (youtubePlaybackMode == YoutubePlaybackMode.WEBVIEW) {
+                            YoutubePlaybackMode.EXTERNAL
+                        } else {
+                            YoutubePlaybackMode.WEBVIEW
+                        }
+                    )
+                },
+                focusRequester = playbackRequester,
+                modifier = Modifier.padding(top = 16.dp).width(360.dp)
+            ) {
+                Text(
+                    if (youtubePlaybackMode == YoutubePlaybackMode.WEBVIEW) {
+                        "目前：內嵌 WebView（點擊改為外部播放器）"
+                    } else {
+                        "目前：外部播放器（點擊改為內嵌 WebView）"
+                    }
+                )
+            }
+        }
+        TvPanel(modifier = Modifier.padding(top = 18.dp).fillMaxWidth()) {
             Text("課程資料", style = MaterialTheme.typography.h6)
             Text(
                 "目前使用已驗證的 APK／本機課程資料，不會因網路中斷而清空課程或播放進度。",
@@ -414,7 +453,7 @@ private fun SettingsScreen(
             )
             TvAction(
                 onClick = onReloadCatalog,
-                focusRequester = requester,
+                focusRequester = reloadRequester,
                 modifier = Modifier.padding(top = 20.dp).width(270.dp)
             ) {
                 Text("重新載入課程資料")
@@ -444,7 +483,7 @@ private fun SettingsScreen(
         TvPanel(modifier = Modifier.padding(top = 18.dp).fillMaxWidth()) {
             Text("播放提示", style = MaterialTheme.typography.h6)
             Text(
-                "MP4 使用原生播放器；YouTube 預設先走系統 WebView，失敗時可改用 SmartTube／其他外部播放器。可用 build property 關閉 WebView。",
+                "MP4 使用原生播放器；YouTube 目前設定為${if (youtubePlaybackMode == YoutubePlaybackMode.WEBVIEW) "內嵌 WebView" else "外部播放器"}。可在上方切換播放方式。",
                 style = MaterialTheme.typography.body1,
                 modifier = Modifier.padding(top = 10.dp)
             )
@@ -668,7 +707,9 @@ private fun EditionScreen(
     val rememberedRequester = remember { FocusRequester() }
     val courseListState = rememberLazyListState()
     val rememberedCourseId = catalogLocation?.courseId?.takeIf { id -> edition.courses.any { it.id == id } }
+    var initialFocusRequested by remember(edition.id) { mutableStateOf(false) }
     LaunchedEffect(edition.id, rememberedCourseId) {
+        if (initialFocusRequested) return@LaunchedEffect
         runCatching {
             if (rememberedCourseId != null) {
                 val index = edition.courses.indexOfFirst { it.id == rememberedCourseId }
@@ -677,6 +718,9 @@ private fun EditionScreen(
             } else {
                 firstRequester.requestFocus()
             }
+            // Focus persistence must not steal focus after the user moves to
+            // another course in this list.
+            initialFocusRequested = true
         }
     }
 
@@ -755,16 +799,12 @@ private fun CourseScreen(
     course: Course,
     progress: List<VideoProgressEntity>,
     catalogLocation: LastCatalogLocationEntity?,
-    progressRepository: ProgressRepository,
     onBack: () -> Unit,
     onOpenVideo: (VideoLocation, Long) -> Unit,
     onRestartVideo: (VideoLocation) -> Unit,
     onOpenAttachment: (AttachmentLocation) -> Unit,
     onSectionFocused: (Section) -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val scope = rememberCoroutineScope()
-    var externalMessage by remember(course.id) { mutableStateOf<String?>(null) }
     val sections = course.orderedSections()
     val locations = sections.mapNotNull { section ->
         if (section.type.equals("video", ignoreCase = true)) {
@@ -777,21 +817,39 @@ private fun CourseScreen(
     val rememberedPlayable = catalogLocation?.sectionId?.let { sectionId ->
         locations.firstOrNull { it.section.id == sectionId && PlaybackPolicy.isPlayable(it.video) }
     }
-    val initialPlayable = rememberedPlayable ?: firstPlayable
+    val rememberedAttachment = catalogLocation?.sectionId?.let { sectionId ->
+        sections.firstOrNull {
+            it.id == sectionId &&
+                it.type.equals("attachment", ignoreCase = true) &&
+                it.attachment != null
+        }?.let { section -> AttachmentLocation(edition, course, section, section.attachment!!) }
+    }
+    val initialSectionId = rememberedPlayable?.section?.id
+        ?: rememberedAttachment?.section?.id
+        ?: firstPlayable?.section?.id
     val firstRequester = remember { FocusRequester() }
     val rememberedRequester = remember { FocusRequester() }
+    val rememberedAttachmentRequester = remember { FocusRequester() }
     val backRequester = remember { FocusRequester() }
     val sectionListState = rememberLazyListState()
-    LaunchedEffect(course.id, initialPlayable?.section?.id) {
+    var initialFocusRequested by remember(course.id) { mutableStateOf(false) }
+    LaunchedEffect(course.id, initialSectionId) {
+        if (initialFocusRequested) return@LaunchedEffect
         runCatching {
-            if (initialPlayable == null) {
+            if (initialSectionId == null) {
                 backRequester.requestFocus()
             } else {
-                val initialIndex = sections.indexOfFirst { it.id == initialPlayable.section.id }
+                val initialIndex = sections.indexOfFirst { it.id == initialSectionId }
                 sectionListState.scrollToItem(initialIndex.coerceAtLeast(0))
-                if (rememberedPlayable != null) rememberedRequester.requestFocus()
-                else firstRequester.requestFocus()
+                when {
+                    rememberedPlayable != null -> rememberedRequester.requestFocus()
+                    rememberedAttachment != null -> rememberedAttachmentRequester.requestFocus()
+                    else -> firstRequester.requestFocus()
+                }
             }
+            // The catalog location is updated whenever a row receives focus;
+            // that update must not move focus back to the first video.
+            initialFocusRequested = true
         }
     }
 
@@ -800,7 +858,11 @@ private fun CourseScreen(
             title = course.title,
             subtitle = "${edition.name}・${edition.semester}",
             onBack = onBack,
-            backFocusRequester = if (firstPlayable == null) backRequester else null
+            backFocusRequester = if (firstPlayable == null && rememberedAttachment == null) {
+                backRequester
+            } else {
+                null
+            }
         )
         if (course.instructions.isNotEmpty()) {
             TvPanel(modifier = Modifier.padding(top = 22.dp).fillMaxWidth()) {
@@ -825,11 +887,6 @@ private fun CourseScreen(
             style = MaterialTheme.typography.h5,
             modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)
         )
-        externalMessage?.let { message ->
-            TvPanel(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                Text(message, style = MaterialTheme.typography.body2, color = MaterialTheme.colors.secondary)
-            }
-        }
         if (sections.isEmpty()) {
             TvPanel(modifier = Modifier.fillMaxWidth()) {
                 Text("目前沒有課程內容。")
@@ -876,6 +933,11 @@ private fun CourseScreen(
                             TvAction(
                                 onClick = { onOpenAttachment(attachmentLocation) },
                                 onFocused = { onSectionFocused(section) },
+                                focusRequester = if (attachmentLocation == rememberedAttachment) {
+                                    rememberedAttachmentRequester
+                                } else {
+                                    null
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -899,7 +961,7 @@ private fun CourseScreen(
                         location != null -> {
                             val itemProgress = location.video.progressFrom(progress)
                             val isYouTube = location.video.isYouTube
-                            val isYouTubeBlocked = isYouTube && !PlaybackPolicy.youtubeEnabled
+                            val isYouTubeBlocked = isYouTube && !PlaybackPolicy.isPlayable(location.video)
                             TvPanel(modifier = Modifier.fillMaxWidth()) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(modifier = Modifier.weight(1f)) {
@@ -913,50 +975,19 @@ private fun CourseScreen(
                                             )
                                         }
                                         Text(
-                                            if (isYouTubeBlocked) "YouTube・待 Go/No-Go" else progressLabel(itemProgress),
+                                            if (isYouTubeBlocked) "YouTube・請至設定選擇播放方式" else progressLabel(itemProgress),
                                             style = MaterialTheme.typography.body2,
                                             color = if (isYouTubeBlocked) MaterialTheme.colors.secondary else MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
                                             modifier = Modifier.padding(top = 7.dp)
                                         )
                                     }
                                     if (isYouTubeBlocked) {
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text(
-                                                "WebView 尚未通過 Go/No-Go",
-                                                style = MaterialTheme.typography.body2,
-                                                color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f)
-                                            )
-                                            TvAction(
-                                                onClick = {
-                                                    val result = launchExternalYouTube(
-                                                        context,
-                                                        location.video.videoId.orEmpty()
-                                                    )
-                                                    externalMessage = result.message
-                                                    if (result.player != mia.chinese.playback.ExternalYouTubePlayer.NONE) {
-                                                        val existing = location.video.progressFrom(progress)
-                                                        scope.launch {
-                                                            progressRepository.saveCheckpoint(
-                                                                location = location,
-                                                                positionMs = existing?.positionMs ?: 0L,
-                                                                durationMs = existing?.durationMs ?: location.video.durationMs,
-                                                                status = when (existing?.status) {
-                                                                    ProgressStatus.COMPLETED.name -> ProgressStatus.COMPLETED
-                                                                    ProgressStatus.IN_PROGRESS.name -> ProgressStatus.IN_PROGRESS
-                                                                    else -> ProgressStatus.NOT_STARTED
-                                                                }
-                                                            )
-                                                        }
-                                                    }
-                                                },
-                                                onFocused = { onSectionFocused(section) },
-                                                modifier = Modifier
-                                                    .padding(top = 8.dp)
-                                                    .width(260.dp)
-                                            ) {
-                                                Text("開啟外部播放器")
-                                            }
-                                        }
+                                        Text(
+                                            "請返回首頁，在設定選擇 YouTube 播放方式。",
+                                            style = MaterialTheme.typography.body2,
+                                            color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f),
+                                            modifier = Modifier.width(300.dp)
+                                        )
                                     } else {
                                         val start = if (itemProgress?.status == ProgressStatus.COMPLETED.name) {
                                             0L

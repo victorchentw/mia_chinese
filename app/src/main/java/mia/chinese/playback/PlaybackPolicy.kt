@@ -3,8 +3,8 @@ package mia.chinese.playback
 import mia.chinese.BuildConfig
 
 /**
- * YouTube remains a gate until a supported target TV is signed off. This test
- * build uses the system WebView first in both variants; set
+ * YouTube remains a gate until a supported target TV is signed off. The default
+ * mode uses the system WebView; Settings can select an external player. Set
  * -PmiaEnableYoutubeWebView=false for a conservative MP4-only build.
  */
 object PlaybackPolicy {

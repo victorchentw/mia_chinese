@@ -1,6 +1,6 @@
 # Mia Chinese TV
 
-Android TV 國文影片課學習 App，版本 `v0.1.16`。
+Android TV 國文影片課學習 App，版本 `v0.1.17`。
 
 ## Pi agent mandatory workflow
 
@@ -19,7 +19,7 @@ Android TV 國文影片課學習 App，版本 `v0.1.16`。
 
 若只需要檢查、不應產生 repository 修改，必須明確說明，不要偷偷修改版本。
 
-## Current v0.1.16 scope
+## Current v0.1.17 scope
 
 - Android TV / Google TV，min SDK 28
 - TV launcher icon：沿用 Mia bird 視覺，文字改為「米亞的國文」
@@ -29,7 +29,7 @@ Android TV 國文影片課學習 App，版本 `v0.1.16`。
 - 出版社、課程、影片段落、文字說明與附件瀏覽
 - MP4-first Media3 播放器
 - Room 保存每支影片播放進度與首頁繼續播放指標
-- YouTube IFrame 播放器預設先使用 Android TV 系統 WebView；失敗時可明確交給 SmartTube／其他外部播放器。No-Go 仍代表不保證所有 TV，相容性差時可編成 MP4-only
+- YouTube 播放方式可在設定切換為內嵌 WebView 或 SmartTube／其他外部播放器；No-Go 仍代表不保證所有 TV，相容性差時可編成 MP4-only
 
 目前 asset catalog 已替換為 Notion 公開課程資料；有效課程數為翰林 18、康軒 19、南一 18。課程卡片會分別顯示影片、文字說明與附件數量。可用下列工具重新產生 catalog：
 
@@ -38,7 +38,7 @@ python3 tools/notion_import/import_public_catalog.py \
   --output app/src/main/assets/catalog/lessons.json
 ```
 
-Notion 上傳影片／附件仍需後續搬移至穩定 CDN；YouTube 內嵌播放仍受 Phase 0B Go/No-Go 限制，但目前 build 會先嘗試 WebView，失敗時可交給 SmartTube／系統外部播放器。PDF 附件可在 TV 嘗試 WebView，並提供手機 QR code；目前 Android TV WebView 不保證原生 PDF render。Phase 0B 測試結果記錄於 [`YOUTUBE_GO_NO_GO.md`](YOUTUBE_GO_NO_GO.md)。
+Notion 上傳影片／附件仍需後續搬移至穩定 CDN；YouTube 內嵌播放仍受 Phase 0B Go/No-Go 限制，播放方式可在設定頁切換為 WebView 或 SmartTube／系統外部播放器。PDF 附件可在 TV 嘗試 WebView，並提供手機 QR code；目前 Android TV WebView 不保證原生 PDF render。Phase 0B 測試結果記錄於 [`YOUTUBE_GO_NO_GO.md`](YOUTUBE_GO_NO_GO.md)。
 
 驗證已產生的 catalog（不會對媒體發出網路請求）：
 
@@ -84,7 +84,7 @@ MIA_SIGNING_PASSWORD='<從 wiki 取得>' \
 ./gradlew assembleRelease -PmiaEnableYoutubeWebView=false
 ```
 
-預設 build 會先走系統 WebView；若播放失敗，可按外部播放器。若未安裝 SmartTube，fallback 會再嘗試系統 YouTube／瀏覽器；外部播放器無法回報即時播放秒數。
+預設 build 使用系統 WebView；可在 App「設定」切換 YouTube 播放方式。選擇外部播放器後，開啟 YouTube 課程會直接交給 SmartTube／系統 YouTube／瀏覽器；外部播放器無法回報即時播放秒數。
 
 APK 會產生於 `app/build/outputs/apk/debug/app-debug.apk` 或
 `app/build/outputs/apk/release/app-release.apk`。

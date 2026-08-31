@@ -3,11 +3,10 @@
 ## Decision
 
 **No-Go as a universal WebView guarantee.** The tested API 28 WebView is not a
-reliable baseline, but the current test build intentionally tries the system
-WebView first and then offers an explicit external-player fallback. A
-conservative MP4-only build is available with
-`-PmiaEnableYoutubeWebView=false`. The fallback tries SmartTube before the
-system YouTube／browser handler.
+reliable baseline. The app keeps WebView as the default, while the YouTube
+playback method can be selected in Settings. Selecting external playback
+launches SmartTube before the system YouTube／browser handler. A conservative
+MP4-only build is available with `-PmiaEnableYoutubeWebView=false`.
 
 ## Test run
 
@@ -41,11 +40,12 @@ OS. Installing an APK cannot force a provider update or switch.
 
 - `PlaybackPolicy.youtubeEnabled` is true by default in both variants; use
   `-PmiaEnableYoutubeWebView=false` to produce a conservative MP4-only build.
-- Course pages try WebView by default. The player overlay always offers
-  `外部播放`; a WebView timeout／playback failure also shows retry and error
-  messaging rather than silently waiting forever.
-- MP4-only builds show `YouTube・待 Go/No-Go` plus an intentional external-player
-  action.
+- Course pages use the YouTube method selected in Settings; the player overlay
+  contains playback controls only and no external-player action. A WebView
+  timeout／playback failure shows retry and error messaging rather than silently
+  waiting forever.
+- MP4-only builds show `YouTube・待 Go/No-Go`; external playback is unavailable
+  in that build.
 - No Google login, cookie workaround, stream URL extraction, or policy bypass
   is used.
 
@@ -59,9 +59,9 @@ OS. Installing an APK cannot force a provider update or switch.
    embedding-disabled and removed videos.
 4. Obtain product approval for ads, branding, controls and YouTube terms.
 5. Only then consider declaring WebView a universal release guarantee and run
-   the full signed-release smoke test; otherwise keep the WebView-first／external
-   fallback as an exploration build or produce the conservative MP4-only／managed
-   MP4-CDN release.
+   the full signed-release smoke test; otherwise keep the Settings-selectable
+   WebView／external playback as an exploration build or produce the conservative
+   MP4-only／managed MP4-CDN release.
 
 ## WebView update note
 

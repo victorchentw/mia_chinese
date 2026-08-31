@@ -47,7 +47,6 @@ import kotlinx.coroutines.launch
 import mia.chinese.data.ProgressRepository
 import mia.chinese.data.ProgressStatus
 import mia.chinese.model.VideoLocation
-import mia.chinese.playback.ExternalYouTubePlayer
 import mia.chinese.playback.PlayerInputAction
 import mia.chinese.playback.PlayerInputController
 import mia.chinese.playback.PlayerInputSource
@@ -153,20 +152,6 @@ internal fun YouTubePlayerScreen(
     val latestReplay = rememberUpdatedState { replay() }
     val latestHasEnded = rememberUpdatedState(hasEnded)
     val latestDurationMs = rememberUpdatedState(durationMs)
-
-    fun openExternal() {
-        evaluate("window.miaYouTubePause()")
-        latestSave.value()
-        val result = mia.chinese.playback.launchExternalYouTube(
-            context,
-            location.video.videoId.orEmpty()
-        )
-        if (result.player == ExternalYouTubePlayer.NONE) {
-            errorMessage = result.message
-        } else {
-            errorMessage = null
-        }
-    }
 
     val mediaSession = remember(sessionId) {
         TvMediaSession(
@@ -447,8 +432,7 @@ internal fun YouTubePlayerScreen(
                     hasEnded = false
                     webViewState.value?.loadUrl(youtubePlayerUrl(location.video.videoId.orEmpty(), sessionId))
                 },
-                onBack = ::checkpointAndClose,
-                onOpenExternal = ::openExternal
+                onBack = ::checkpointAndClose
             )
         }
     }
