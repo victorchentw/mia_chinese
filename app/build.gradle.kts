@@ -29,6 +29,11 @@ val catalogSha256 = providers.gradleProperty("miaCatalogSha256")
     .orElse(providers.environmentVariable("MIA_CATALOG_SHA256"))
     .orElse("")
     .get()
+val youtubeWebViewEnabled = providers.gradleProperty("miaEnableYoutubeWebView")
+    .orElse(providers.environmentVariable("MIA_ENABLE_YOUTUBE_WEBVIEW"))
+    .orElse("true")
+    .get()
+    .equals("true", ignoreCase = true)
 
 fun buildConfigString(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
@@ -41,10 +46,11 @@ android {
         applicationId = "mia.chinese"
         minSdk = 28
         targetSdk = 34
-        versionCode = 12
-        versionName = "0.1.11"
+        versionCode = 13
+        versionName = "0.1.12"
         buildConfigField("String", "CATALOG_ENDPOINT", buildConfigString(catalogEndpoint))
         buildConfigField("String", "CATALOG_SHA256", buildConfigString(catalogSha256))
+        buildConfigField("boolean", "YOUTUBE_WEBVIEW_ENABLED", youtubeWebViewEnabled.toString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -127,6 +133,7 @@ dependencies {
     kapt("androidx.room:room-compiler:2.6.1")
 
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation("com.google.zxing:core:3.5.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     testImplementation("junit:junit:4.13.2")

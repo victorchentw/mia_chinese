@@ -1,10 +1,12 @@
 package mia.chinese.ui
 
 import android.net.Uri
+import android.webkit.WebView
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -59,6 +63,7 @@ import mia.chinese.data.ProgressStatus
 import mia.chinese.data.ProgressRepository
 import mia.chinese.data.ResumeTargetResolver
 import mia.chinese.data.VideoProgressEntity
+import mia.chinese.model.AttachmentLocation
 import mia.chinese.model.Catalog
 import mia.chinese.model.Course
 import mia.chinese.model.Edition
@@ -66,9 +71,12 @@ import mia.chinese.model.Section
 import mia.chinese.model.VideoLocation
 import mia.chinese.playback.PlaybackPolicy
 import mia.chinese.playback.clampPosition
+import mia.chinese.playback.launchExternalYouTube
 import mia.chinese.model.attachmentSections
+import mia.chinese.model.findAttachment
 import mia.chinese.model.findCourse
 import mia.chinese.model.findVideo
+import mia.chinese.model.isPdf
 import mia.chinese.model.noteSections
 import mia.chinese.model.orderedSections
 import mia.chinese.model.videoSections
@@ -78,10 +86,12 @@ private const val HOME_ROUTE = "home"
 private const val SETTINGS_ROUTE = "settings"
 private const val EDITION_ROUTE = "edition/{editionId}"
 private const val COURSE_ROUTE = "course/{courseId}"
+private const val ATTACHMENT_ROUTE = "attachment/{attachmentId}"
 private const val PLAYER_ROUTE = "player/{videoId}?startPositionMs={startPositionMs}"
 
 private fun editionPath(id: String) = "edition/${Uri.encode(id)}"
 private fun coursePath(id: String) = "course/${Uri.encode(id)}"
+private fun attachmentPath(id: String) = "attachment/${Uri.encode(id)}"
 private fun playerPath(id: String, startPositionMs: Long) =
     "player/${Uri.encode(id)}?startPositionMs=$startPositionMs"
 
@@ -238,17 +248,42 @@ private fun CatalogNavigation(
                     course = course,
                     progress = progress,
                     catalogLocation = catalogLocation,
+                    progressRepository = progressRepository,
                     onBack = { navController.popBackStack() },
                     onOpenVideo = { location, start -> openPlayer(location, start) },
                     onRestartVideo = { location -> openPlayer(location, 0L) },
+                    onOpenAttachment = { location ->
+                        saveCatalogLocation(
+                            editionId = location.edition.id,
+                            courseId = location.course.id,
+                            sectionId = location.section.id,
+                            focusedItemId = location.attachment.id
+                        )
+                        navController.navigate(attachmentPath(location.attachment.id))
+                    },
                     onSectionFocused = { section ->
                         saveCatalogLocation(
                             editionId = edition.id,
                             courseId = course.id,
                             sectionId = section.id,
-                            focusedItemId = section.video?.id
+                            focusedItemId = section.video?.id ?: section.attachment?.id
                         )
                     }
+                )
+            }
+        }
+        composable(
+            route = ATTACHMENT_ROUTE,
+            arguments = listOf(navArgument("attachmentId") { type = NavType.StringType })
+        ) { entry ->
+            val attachmentId = entry.arguments?.getString("attachmentId")
+            val location = attachmentId?.let(catalog::findAttachment)
+            if (location == null) {
+                MissingContentScreen(onBack = { navController.popBackStack() })
+            } else {
+                PdfAttachmentScreen(
+                    location = location,
+                    onBack = { navController.popBackStack() }
                 )
             }
         }
@@ -351,6 +386,11 @@ private fun SettingsScreen(
     onSyncCatalog: () -> Unit
 ) {
     val requester = remember { FocusRequester() }
+    val webViewVersion = remember {
+        WebView.getCurrentWebViewPackage()?.let { packageInfo ->
+            "${packageInfo.packageName} ${packageInfo.versionName ?: "unknown"}"
+        } ?: "未回報"
+    }
     LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
     ScreenFrame {
         ScreenHeader(title = "設定", onBack = onBack)
@@ -403,8 +443,14 @@ private fun SettingsScreen(
         TvPanel(modifier = Modifier.padding(top = 18.dp).fillMaxWidth()) {
             Text("播放提示", style = MaterialTheme.typography.h6)
             Text(
-                "MP4 使用原生播放器；YouTube 僅在 debug spike 中開啟，正式版等待目標 Android TV Go/No-Go 簽核。",
+                "MP4 使用原生播放器；YouTube 預設先走系統 WebView，失敗時可改用 SmartTube／其他外部播放器。可用 build property 關閉 WebView。",
                 style = MaterialTheme.typography.body1,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            Text(
+                "目前 WebView：$webViewVersion。能否更新及實際使用哪個 provider 由 Android TV 系統／Play Store 決定。",
+                style = MaterialTheme.typography.body2,
+                color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
                 modifier = Modifier.padding(top = 10.dp)
             )
         }
@@ -703,12 +749,20 @@ private fun CourseScreen(
     course: Course,
     progress: List<VideoProgressEntity>,
     catalogLocation: LastCatalogLocationEntity?,
+    progressRepository: ProgressRepository,
     onBack: () -> Unit,
     onOpenVideo: (VideoLocation, Long) -> Unit,
     onRestartVideo: (VideoLocation) -> Unit,
+    onOpenAttachment: (AttachmentLocation) -> Unit,
     onSectionFocused: (Section) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
+    var externalMessage by remember(course.id) { mutableStateOf<String?>(null) }
     val sections = course.orderedSections()
+    val attachmentLocations = sections.mapNotNull { section ->
+        section.attachment?.let { AttachmentLocation(edition, course, section, it) }
+    }
     val locations = sections.mapNotNull { section ->
         if (section.type.equals("video", ignoreCase = true)) {
             section.video?.let { VideoLocation(edition, course, section, it) }
@@ -768,6 +822,39 @@ private fun CourseScreen(
             style = MaterialTheme.typography.h5,
             modifier = Modifier.padding(top = 18.dp, bottom = 12.dp)
         )
+        if (attachmentLocations.isNotEmpty()) {
+            Text(
+                "講義附件捷徑",
+                style = MaterialTheme.typography.h6,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                attachmentLocations.forEach { attachmentLocation ->
+                    TvAction(
+                        onClick = { onOpenAttachment(attachmentLocation) },
+                        onFocused = { onSectionFocused(attachmentLocation.section) },
+                        modifier = Modifier.width(330.dp).heightIn(min = 84.dp)
+                    ) {
+                        Text(
+                            attachmentLocation.attachment.title,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            if (attachmentLocation.attachment.isPdf()) "PDF／手機 QR code" else "附件／手機 QR code",
+                            style = MaterialTheme.typography.body2,
+                            color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
+                            modifier = Modifier.padding(top = 5.dp)
+                        )
+                    }
+                }
+            }
+        }
+        externalMessage?.let { message ->
+            TvPanel(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                Text(message, style = MaterialTheme.typography.body2, color = MaterialTheme.colors.secondary)
+            }
+        }
         if (sections.isEmpty()) {
             TvPanel(modifier = Modifier.fillMaxWidth()) {
                 Text("目前沒有課程內容。")
@@ -777,7 +864,8 @@ private fun CourseScreen(
                 state = sectionListState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(sections, key = { it.id }) { section ->
@@ -803,25 +891,34 @@ private fun CourseScreen(
                                 }
                             }
                         }
-                        section.type.equals("attachment", ignoreCase = true) -> {
-                            TvPanel(modifier = Modifier.fillMaxWidth()) {
-                                Text(section.title, style = MaterialTheme.typography.h6)
-                                Text(
-                                    if (section.attachment?.kind.equals("pdf", ignoreCase = true)) {
-                                        "PDF 講義"
-                                    } else {
-                                        "課後附件"
-                                    },
-                                    style = MaterialTheme.typography.body2,
-                                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
-                                Text(
-                                    "目前顯示附件資訊，電視閱讀器尚未啟用。",
-                                    style = MaterialTheme.typography.body2,
-                                    color = MaterialTheme.colors.secondary,
-                                    modifier = Modifier.padding(top = 6.dp)
-                                )
+                        section.type.equals("attachment", ignoreCase = true) && section.attachment != null -> {
+                            val attachmentLocation = AttachmentLocation(
+                                edition = edition,
+                                course = course,
+                                section = section,
+                                attachment = section.attachment
+                            )
+                            TvAction(
+                                onClick = { onOpenAttachment(attachmentLocation) },
+                                onFocused = { onSectionFocused(section) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(section.title, style = MaterialTheme.typography.h6)
+                                        Text(
+                                            if (section.attachment.isPdf()) {
+                                                "PDF 講義・可在 TV 嘗試或用 QR code 在手機開啟"
+                                            } else {
+                                                "課後附件"
+                                            },
+                                            style = MaterialTheme.typography.body2,
+                                            color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
+                                            modifier = Modifier.padding(top = 6.dp)
+                                        )
+                                    }
+                                    Text("查看附件", style = MaterialTheme.typography.body1)
+                                }
                             }
                         }
                         location != null -> {
@@ -848,11 +945,43 @@ private fun CourseScreen(
                                         )
                                     }
                                     if (isYouTubeBlocked) {
-                                        Text(
-                                            "目前版本尚未啟用 YouTube",
-                                            style = MaterialTheme.typography.body2,
-                                            color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f)
-                                        )
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text(
+                                                "WebView 尚未通過 Go/No-Go",
+                                                style = MaterialTheme.typography.body2,
+                                                color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f)
+                                            )
+                                            TvAction(
+                                                onClick = {
+                                                    val result = launchExternalYouTube(
+                                                        context,
+                                                        location.video.videoId.orEmpty()
+                                                    )
+                                                    externalMessage = result.message
+                                                    if (result.player != mia.chinese.playback.ExternalYouTubePlayer.NONE) {
+                                                        val existing = location.video.progressFrom(progress)
+                                                        scope.launch {
+                                                            progressRepository.saveCheckpoint(
+                                                                location = location,
+                                                                positionMs = existing?.positionMs ?: 0L,
+                                                                durationMs = existing?.durationMs ?: location.video.durationMs,
+                                                                status = when (existing?.status) {
+                                                                    ProgressStatus.COMPLETED.name -> ProgressStatus.COMPLETED
+                                                                    ProgressStatus.IN_PROGRESS.name -> ProgressStatus.IN_PROGRESS
+                                                                    else -> ProgressStatus.NOT_STARTED
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                },
+                                                onFocused = { onSectionFocused(section) },
+                                                modifier = Modifier
+                                                    .padding(top = 8.dp)
+                                                    .width(260.dp)
+                                            ) {
+                                                Text("開啟外部播放器")
+                                            }
+                                        }
                                     } else {
                                         val start = if (itemProgress?.status == ProgressStatus.COMPLETED.name) {
                                             0L
@@ -899,7 +1028,7 @@ private fun CourseScreen(
 }
 
 @Composable
-private fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
+internal fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colors.onBackground) {
         Column(
             modifier = Modifier
@@ -912,7 +1041,7 @@ private fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun ScreenHeader(
+internal fun ScreenHeader(
     title: String,
     subtitle: String? = null,
     onBack: () -> Unit,

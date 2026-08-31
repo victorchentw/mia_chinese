@@ -4,7 +4,7 @@
 >
 > 本文件是 `mia_chinese` 的產品與實作規格。它包含原始需求，以及本次 review 補強的播放器風險、非同步狀態、內容更新、穩定 ID、生命週期與「繼續上次進度」流程。
 >
-> **目前狀態（v0.1.11 / versionCode 12）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；Phase 0B 已判定 YouTube No-Go，release 維持 MP4-only。真實目標 TV、媒體搬遷與 PDF／家長功能仍是後續工作。
+> **目前狀態（v0.1.12 / versionCode 13）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；API 28 baseline 的 YouTube WebView 仍未通過通用 Go/No-Go，但目前 build 會先嘗試 WebView，失敗時提供 SmartTube／系統外部播放器 fallback。PDF 已加入 TV WebView 實驗頁與手機 QR code；真實目標 TV、媒體搬遷與家長功能仍是後續工作。
 
 ## 0. Repository 與工作約定
 
@@ -12,7 +12,7 @@
 
 - Git remote：`git@github.com:victorchentw/mia_chinese.git`
 - 本機 canonical working tree：`/mnt/ssd/mia_chinese`
-- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.11` 進行 release hardening。
+- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.12` 進行 release hardening。
 - 本文件應放在 repository root：`ANDROID_TV_LEARNING_APP_PLAN.md`。
 - 每個 Phase 完成一個可編譯、可驗收的 commit；沒有明確要求時不自動 push。
 
@@ -47,7 +47,7 @@ GIT_SSH_COMMAND='ssh -i /mnt/ssd/vvdoc/key/id_rsa -o IdentitiesOnly=yes' \
 支援兩種影片來源：
 
 - **MP4**：使用 Media3 / ExoPlayer 原生播放。
-- **YouTube**：使用 Android WebView 內嵌 YouTube IFrame Player API 播放。
+- **YouTube**：預設以 Android TV 系統 WebView 內嵌 YouTube IFrame Player API；失敗時可明確交給 SmartTube／系統外部播放器。
 
 兩種播放器都實作共同的 `LessonPlayer` 介面，讓課程畫面與遙控器操作不依賴來源類型。
 
@@ -56,7 +56,7 @@ GIT_SSH_COMMAND='ssh -i /mnt/ssd/vvdoc/key/id_rsa -o IdentitiesOnly=yes' \
 1. 可瀏覽出版社、學期、課次、學習說明與影片段落。
 2. 可在 Android TV 實機以 D-pad / OK / Back 操作所有主要流程。
 3. MP4 可播放、暫停、續播、左右跳轉 5 秒。
-4. YouTube 在通過 Phase 0 實機 Go/No-Go 驗證時才納入 MVP；若不通過，先以 MP4-only 發布。
+4. YouTube WebView 必須通過目標設備 Go/No-Go 才能被視為可靠的生產基線；目前探索 build 先嘗試 WebView，失敗時提供使用者明確選擇的外部播放器 fallback。外部播放器不保證回傳 App 內播放進度；需要保守發佈時可編成 MP4-only。
 5. 每支影片保存最後播放秒數、課程位置與內容 revision。
 6. 首頁提供明確的「繼續上次學習」卡片及「回到上次進度」快捷入口。
 7. 從快捷入口按 OK 後直接開啟正確影片並從上次秒數播放，不要求孩子重新找出版社／課次／段落。
@@ -66,7 +66,7 @@ GIT_SSH_COMMAND='ssh -i /mnt/ssd/vvdoc/key/id_rsa -o IdentitiesOnly=yes' \
 
 ### 1.2 第一階段不做
 
-- TV PDF 閱讀器；第一階段只顯示有講義，第二階段再評估 TV 閱讀或 QR code。
+- 把 TV WebView 當成保證可用的 PDF 閱讀器；目前只提供實驗性嘗試，並以 QR code 作為手機閱讀 fallback。
 - 影片縮圖自動預覽或自動播放。
 - 影片下載、YouTube 串流 URL 解析、破解或離線保存 YouTube。
 - 搜尋、留言、推薦影片、外部任意瀏覽。
@@ -286,7 +286,7 @@ lastTextbookId / lastTextbookLessons
 題目卷已寄送紙本講義，不必列印；開啟詳解後直接對答案，
 錯題請將詳解訂正在紙本題目卷。
 
-[ 開啟講義 PDF ]（第二階段）
+[ 查看講義／TV WebView ]　[ 手機 QR code ]
 ```
 
 規則：
@@ -295,7 +295,7 @@ lastTextbookId / lastTextbookLessons
 - `video` 轉成可播放卡片，顯示來源、duration（已知時）與 progress。
 - 按影片卡的 `繼續播放` 直接從該影片紀錄的位置開始。
 - `重新開始` 必須是明確的第二 action，不可因為點擊卡片而悄悄重設進度。
-- `pdf` / `file` 第一階段顯示「有講義」及不可播放狀態；第二階段才加入閱讀器或 QR code。
+- `pdf` / `file` 顯示附件入口；PDF 頁面可嘗試系統 WebView，並產生 URL QR code 供手機開啟。Android WebView 是否直接 render PDF 必須逐台驗證，不能視為平台保證。
 
 ### 4.6 播放頁
 
@@ -548,7 +548,7 @@ enum class PlayerEvent {
 
 ### 7.4 YouTube：WebView + IFrame Player API
 
-- WebView 載入 App 自帶 HTML，使用 YouTube IFrame Player API。
+- WebView 載入 App 自帶 HTML，使用 YouTube IFrame Player API；目前 debug／release 預設先嘗試系統 WebView，可用 `-PmiaEnableYoutubeWebView=false` 編成保守的 MP4-only 版本。
 - 不把 Google 帳號登入、Cookie 或 autoplay 當成必要前提；公開影片的 cookie／同意頁行為、硬體加速與播放手勢限制，必須在最低支援設備實測。MVP 由孩子按 OK 後才呼叫 `playVideo()`，不以關閉 WebView 的 user-gesture 限制作為 workaround。
 - URL 使用標準化的 video ID；不在 App 中查 YouTube Data API，也不需要下載串流 URL。
 - 建議使用 `WebViewAssetLoader` / `https://appassets.androidplatform.net/` 提供本地頁面，並在 iframe 設定合法 `origin`。
@@ -563,6 +563,8 @@ enum class PlayerEvent {
 - `enablejsapi=1`、`playsinline=1`；是否使用 `controls=0` 必須在 Phase 0 依 YouTube 政策與實機行為確認，不以「隱藏控制列」為無條件前提。
 - WebView 設定只開啟播放所需能力；限制 navigation、file access、任意外部 URL 與 bridge 暴露的方法。
 - YouTube 廣告、登入限制、影片下架、禁止嵌入、年齡／地區限制都可能使 MVP 失敗；不得嘗試繞過。
+- Android WebView provider 由系統選擇；只有在 Android TV／Google TV 的系統映像、Play Store 與 provider 支援更新時才能安裝新版，App 不應自行下載或強制切換 provider。設定頁顯示目前 provider／版本，供 spike 記錄。
+- WebView 失敗時提供明確的 `開啟外部播放器` action；優先尋找 SmartTube stable／beta package，再交給系統 YouTube／瀏覽器。這只是標準 `ACTION_VIEW` deep link，不擷取串流、不繞過限制，且外部播放秒數無法同步回 Room。
 
 ### 7.5 YouTube non-blocking progress
 
@@ -613,12 +615,19 @@ YouTube 是本案最大的技術與產品風險，必須提前在 Phase 0 完成
 - 目標內容大量禁止嵌入或必須登入。
 - 控制列、廣告或條款與兒童課程需求不可接受。
 
-No-Go 時：
+No-Go 時（若採保守正式發佈）：
 
-1. MVP 先只發布 MP4。
-2. 影片匯入報告把 YouTube 標成 `blocked`；MP4-only release policy 不建立可啟動的 YouTube 卡片，若為保留課程結構而顯示，必須是明確的不可用狀態，不讓孩子看到無限 loading 或半成品入口。
-3. 是否開啟官方 YouTube App 作為備援，列為產品決策；不可當作預設且不可依賴 App 內進度保存。
+1. 正式版只發布 MP4；探索 build 仍可先嘗試內嵌 WebView。
+2. 影片匯入報告把 YouTube 標成 `blocked`；只要開啟 WebView，就必須有 timeout／錯誤 UI 與使用者主動按下的外部播放器 fallback，不讓孩子看到無限 loading 或半成品入口。
+3. 可提供明確的 SmartTube／其他外部播放器 fallback；不可依賴 App 內進度保存，且需在實際安裝該播放器的目標設備驗證 package、deep link、Back 返回與兒童使用流程。
 4. 重新評估把內容搬到自己控制的 MP4/CDN。
+
+### 8.3 WebView 更新與外部播放器測試
+
+- Android TV 的 WebView 可能透過 Play Store／系統更新升級，但 API 28 emulator 的 provider 可能固定在舊版；安裝新 APK 不代表目前 provider 已切換。
+- 先在設定頁記錄 provider package／version，再測試預設 WebView 的 signed release；另以 `-PmiaEnableYoutubeWebView=false` 驗證 MP4-only 對照版。
+- SmartTube fallback 只在裝有 `com.liskovsoft.smarttubetv` 或 `com.liskovsoft.smarttubetv.beta` 的設備上能被直接驗證；沒有安裝時，App 顯示可理解的錯誤並嘗試系統 handler。
+- 外部 App 沒有可靠的回呼協定可提供播放秒數；啟動前可保存現有 checkpoint，但不宣稱外部播放已完成。
 
 ---
 
@@ -1004,7 +1013,9 @@ tools/
 - [ ] 測試 app 背景／回前景、WebView 銷毀／重建、網路中斷。（程式已加入 lifecycle／destroy handling，但正式設備矩陣尚未完成。）
 - [x] 測試至少一支受 YouTube 播放限制的錯誤畫面。
 - [x] 將上述設備與測試結果整理成 Go/No-Go 測試矩陣（見 `YOUTUBE_GO_NO_GO.md`）。
-- [x] 做出 YouTube Go/No-Go；目前為 No-Go，release 鎖定 MP4-only MVP。
+- [x] 做出 YouTube Go/No-Go；目前 WebView 為 No-Go（不代表所有新 TV 都失敗），探索 build 先嘗試 WebView 並保留明確外部播放器 fallback，另可產生 MP4-only 對照版。
+- [x] 顯示系統 WebView provider／版本，並提供 release property 供新 provider 實機重測。
+- [x] 加入 SmartTube stable／beta 與系統 `ACTION_VIEW` fallback；SmartTube deep link 仍需在安裝該 App 的目標設備驗證。
 
 **驗收**：不依賴完整 UI，即可證明兩種來源的核心操作與續播是否可靠。
 
@@ -1018,13 +1029,13 @@ tools/
 
 **驗收**：遙控器可從首頁選到任一有效 MP4 並返回原課程，焦點不消失。
 
-### Phase 1.5：YouTube 整合（約 3–5 天；僅 Go 時執行）
+### Phase 1.5：YouTube 整合（約 3–5 天；WebView 探索與外部 fallback 可獨立驗證，生產保證仍需 Go）
 
-- [ ] `YouTubeWebViewLessonPlayer` 遵守 player interface。（目前保留為 debug spike screen；正式整合受 No-Go gate 阻擋。）
+- [x] YouTube WebView player 已整合課程 route 與共用 player controls。（目前是 WebView-first exploration；No-Go 仍表示不宣稱所有設備可靠。）
 - [x] JS state callback、native position cache、error mapping。
 - [x] WebView allowlist、bridge session guard、外部導覽阻擋。
 - [x] YouTube source 與 MP4 共用原生 overlay／遙控器。
-- [x] 若實機行為退化，立即回到 MP4-only，不阻塞其他功能。
+- [x] 若實機行為退化，立即回到 MP4 核心；可用 SmartTube／系統外部播放器作明確 fallback，不阻塞其他功能。
 
 **驗收**：同一課中 MP4／YouTube 卡片都能以相同按鍵操作；限制影片有清楚錯誤回課程。
 
@@ -1045,9 +1056,9 @@ tools/
 - [x] HTTPS catalog 更新、ETag、checksum、atomic replace；正式 signature manifest 仍待 CDN／部署環境決定。
 - [x] last-known-good catalog 與 schema／app version gate。
 - [ ] 管理者同步狀態、失效影片清單與手動重新整理。（已有 sync status 與手動同步入口；失效影片清單尚未做。）
-- [ ] PDF 閱讀或 QR code。
+- [x] PDF 附件入口、TV WebView 實驗頁與手機 QR code；直接 PDF render 仍需以目標設備驗證。
 - [ ] 家長 PIN、每日學習提醒、手機 companion control。
-- [ ] 若 YouTube 不穩定，逐步把影片搬到自有 MP4/CDN。
+- [ ] 若 YouTube 不穩定，逐步把影片搬到自有 MP4/CDN；外部播放器僅作 fallback，不取代穩定媒體資產。
 
 每個 Phase 都要獨立 commit；先讓最小流程 build，再擴充 UI，不能等所有畫面完成才第一次在實機執行。
 
@@ -1074,7 +1085,8 @@ tools/
 - [x] 課程詳情顯示正確影片順序、提醒、progress 與 resume action。
 - [x] MP4 player OK pause／resume、Left／Right 5 秒、Back 回原課程。
 - [x] MP4 player 實體 Play/Pause、Rewind、Fast Forward 與 D-pad 行為一致，且不重複處理事件。
-- [x] YouTube player（若 Go）同樣的 native controls 與 Back 行為；目前以 debug spike 驗證，因 No-Go 不納入 release。
+- [x] YouTube WebView（debug／release exploration）同樣的 native controls 與 Back 行為；目前因 No-Go 不宣稱所有設備可靠。
+- [x] YouTube 可明確交給 SmartTube／系統外部播放器；需在安裝 SmartTube 的真實設備補做 deep-link 與返回驗收。
 - [x] 播放 → pause → 回首頁／Back → progress 正確保存。
 - [x] process recreation 後仍能顯示最近影片與秒數。
 - [x] completed 顯示重新觀看，不會無提示重設或自動下一部。
@@ -1086,7 +1098,7 @@ tools/
 
 - [ ] 目標 Android TV／機上盒上確認 1080p、4K 顯示與安全邊界。（尚未選定正式目標設備。）
 - [ ] 真實遙控器測試短按、長按、連按、媒體鍵與 Back。（目前完成 emulator keyevent；真實遙控器待做。）
-- [ ] WebView／Media3 佔用、buffering、pause、release 沒有黑畫面或卡死。（YouTube 在 API 28 WebView 已觀察到黑畫面，故維持 No-Go。）
+- [ ] WebView／Media3 佔用、buffering、pause、release 沒有黑畫面或卡死。（YouTube 在 API 28 WebView 已觀察到黑畫面，故維持 No-Go；新 provider／目標設備待重測。）
 - [ ] 影片播放中切到 Home／待機／回前景後 checkpoint 正確。（程式路徑已覆蓋，目標設備實測待做。）
 - [ ] 小朋友不需要成人協助即可完成「選課 → 播放 → 暫停抄筆記 → 返回 → 繼續」。（需正式目標設備與實際使用者驗收。）
 
@@ -1098,7 +1110,7 @@ tools/
 - [x] 無網路首次啟動仍可載入內建 catalog；遠端同步失敗不清除 last-known-good catalog 或 progress。
 - [x] 最後影片、最後課程、最後 section、最後秒數均以 stable ID 保存。
 - [x] MP4 可播放、暫停、前後 5 秒、Back 保存。
-- [x] YouTube 通過 Go gate 時可使用；目前未通過，MVP 明確為 MP4-only，release 不提供 YouTube 播放入口。
+- [x] YouTube WebView 通過 Go gate 時可作可靠基線；目前未通過，但探索 build 預設先嘗試內嵌播放並提供明確外部播放器 fallback。
 - [x] 遠端 catalog 失敗不破壞 last-known-good data 與既有進度。
 - [x] 無網路、失效 URL、YouTube 限制與資料損壞都有易懂錯誤 UI。
 - [x] `./gradlew test lint assembleDebug` 通過，並完成 API 28 Android TV emulator MP4 smoke test；正式目標 TV smoke test 待選定設備。
@@ -1111,10 +1123,11 @@ tools/
 2. 三個出版社是否同時上線，或先用一個版本驗證內容與播放器。
 3. Notion MP4 是否為不需登入、可長期存取的 HTTPS；若否，搬到 NAS／CDN。
 4. YouTube 影片是否允許嵌入，以及廣告與官方控制列是否可接受。
-5. YouTube No-Go 時是否完全 MP4-only，或允許家長明確選擇官方 YouTube App 備援。
-6. PDF 是第二階段 TV 閱讀，還是只顯示「已提供紙本講義」。
-7. App 是自家 TV sideload APK，還是未來發布到 Google Play。
-8. 影片播放到結尾後是否永遠停留在完成畫面；MVP 預設不自動播放下一部。
+5. 是否將探索 build 的 WebView-first + 外部 fallback 流程直接作為 sideload 發布策略，或改用 `-PmiaEnableYoutubeWebView=false` 的 MP4-only 版本。
+6. YouTube No-Go 時是否允許 SmartTube／系統外部播放器 fallback；外部播放器不提供 App 內精確續播。
+7. PDF 是否接受 TV WebView 實驗結果；正式 fallback 為手機 QR code，且 QR 只能使用穩定、公開 HTTPS URL。
+8. App 是自家 TV sideload APK，還是未來發布到 Google Play。
+9. 影片播放到結尾後是否永遠停留在完成畫面；MVP 預設不自動播放下一部。
 
 ---
 
@@ -1122,7 +1135,7 @@ tools/
 
 | 風險 | 影響 | 決策／緩解 |
 | --- | --- | --- |
-| YouTube WebView callback 或 seek 不穩 | 續播與遙控器體驗失敗 | Phase 0 spike；No-Go 即 MP4-only |
+| YouTube WebView callback 或 seek 不穩 | 續播與遙控器體驗失敗 | No-Go 不宣稱 WebView 通用可靠；保留 MP4 核心、WebView-first exploration 與外部 fallback，必要時產生 MP4-only build |
 | YouTube 禁止嵌入／廣告／年齡限制 | 個別內容不可播放 | 匯入報告標記；易懂錯誤；不繞過限制 |
 | Notion signed URL 過期 | MP4 播放失效 | 匯入搬到自有 HTTPS 儲存；不直接依賴 Notion URL |
 | MP4 CDN 不支援 HEAD／Range | 預檢查誤判、seek 差 | 不強制 HEAD；Media3 直接載入；Range GET 驗證 |
@@ -1140,6 +1153,6 @@ tools/
   > 正確保存最後影片／秒數
   > 首頁一鍵續播
   > MP4 穩定播放
-  > YouTube 擴充
-  > PDF、家長功能與其他 polish
+  > YouTube WebView／外部 fallback 擴充
+  > PDF QR、家長功能與其他 polish
 ```

@@ -2,9 +2,12 @@
 
 ## Decision
 
-**No-Go for the release build.** The release policy remains MP4-only until a
-real supported Android TV / set-top-box is selected and passes the matrix
-below. Debug builds keep the IFrame path available for a repeatable spike.
+**No-Go as a universal WebView guarantee.** The tested API 28 WebView is not a
+reliable baseline, but the current test build intentionally tries the system
+WebView first and then offers an explicit external-player fallback. A
+conservative MP4-only build is available with
+`-PmiaEnableYoutubeWebView=false`. The fallback tries SmartTube before the
+system YouTube／browser handler.
 
 ## Test run
 
@@ -19,20 +22,27 @@ below. Debug builds keep the IFrame path available for a repeatable spike.
 | IFrame API / duration | `onReady` arrived; duration `1:44:32` was reported |
 | Native D-pad seek | Left/Right moved the native cache by 5 seconds |
 | Native overlay / Back path | Present; error state has retry and return actions |
-| Play / pause | **Failed on this WebView**: playback did not advance and the IFrame reported an autoplay/playback restriction; the surface stayed black |
+| Play / pause | Manual native Play advanced the position to `00:33` on this run, but the IFrame still logged the old-WebView `queueMicrotask` issue and the video surface stayed black; pause／resume needs real-device confirmation |
 | WebView lifecycle | No app fatal exception; decoder was released when the player left the route |
+| External player fallback | Implemented with SmartTube stable／beta package detection and generic `ACTION_VIEW`; SmartTube was not installed on this emulator, so real deep-link／Back behavior remains unverified |
 
 The emulator also logged that this old Chromium does not provide newer Web
-APIs used by the current YouTube bootstrap. That is sufficient to reject
-YouTube for a production baseline; it is not evidence that every target TV
-will fail.
+APIs used by the current YouTube bootstrap. The manual play progress is useful
+for the spike, but the black surface and old-WebView errors are sufficient to
+reject it as a universal production guarantee; it is not evidence that every
+target TV will fail. Android TV may receive a newer Android System WebView／Chrome from
+Play Store or a system update, but the installed provider is selected by the
+OS. Installing an APK cannot force a provider update or switch.
 
 ## Release policy
 
-- `PlaybackPolicy.youtubeEnabled` is false in release builds and true only in
-  debug builds for the spike.
-- Release course pages show an explicit `YouTube・待 Go/No-Go` state rather than
-  a button that can enter an infinite loading screen.
+- `PlaybackPolicy.youtubeEnabled` is true by default in both variants; use
+  `-PmiaEnableYoutubeWebView=false` to produce a conservative MP4-only build.
+- Course pages try WebView by default. The player overlay always offers
+  `外部播放`; a WebView timeout／playback failure also shows retry and error
+  messaging rather than silently waiting forever.
+- MP4-only builds show `YouTube・待 Go/No-Go` plus an intentional external-player
+  action.
 - No Google login, cookie workaround, stream URL extraction, or policy bypass
   is used.
 
@@ -45,5 +55,15 @@ will fail.
 3. Test public, private/unlisted, age-restricted, region-restricted,
    embedding-disabled and removed videos.
 4. Obtain product approval for ads, branding, controls and YouTube terms.
-5. Only then change the release gate and run the full signed-release smoke
-   test; otherwise move the content to managed MP4/CDN assets.
+5. Only then consider declaring WebView a universal release guarantee and run
+   the full signed-release smoke test; otherwise keep the WebView-first／external
+   fallback as an exploration build or produce the conservative MP4-only／managed
+   MP4-CDN release.
+
+## WebView update note
+
+The app reports the current WebView provider and version in Settings. On a real
+Android TV, check Android System WebView／Chrome in system apps and update it
+through the device's supported Play Store/system update path. API 28 emulator
+images may not have a usable update path, and a newer package is not enough if
+the OS still selects the old provider.

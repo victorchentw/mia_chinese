@@ -3,13 +3,13 @@ package mia.chinese.playback
 import mia.chinese.BuildConfig
 
 /**
- * YouTube remains a debug-gate feature until a supported target TV is signed
- * off. Debug builds expose it for the spike; release builds stay MP4-only
- * rather than presenting a half-working production entry point.
+ * YouTube remains a gate until a supported target TV is signed off. This test
+ * build uses the system WebView first in both variants; set
+ * -PmiaEnableYoutubeWebView=false for a conservative MP4-only build.
  */
 object PlaybackPolicy {
     val youtubeEnabled: Boolean
-        get() = BuildConfig.DEBUG
+        get() = BuildConfig.YOUTUBE_WEBVIEW_ENABLED
 
     fun isPlayable(video: mia.chinese.model.VideoItem): Boolean = when {
         video.isMp4 -> video.url?.startsWith("https://") == true

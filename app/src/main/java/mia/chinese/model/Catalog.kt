@@ -66,6 +66,18 @@ data class VideoLocation(
     val video: VideoItem
 )
 
+fun Attachment.isPdf(): Boolean =
+    kind.equals("pdf", ignoreCase = true) ||
+        title.endsWith(".pdf", ignoreCase = true) ||
+        url?.substringBefore("?")?.endsWith(".pdf", ignoreCase = true) == true
+
+data class AttachmentLocation(
+    val edition: Edition,
+    val course: Course,
+    val section: Section,
+    val attachment: Attachment
+)
+
 fun Catalog.allVideoLocations(): List<VideoLocation> = editions.flatMap { edition ->
     edition.courses.flatMap { course ->
         course.videoSections().mapNotNull { section ->
@@ -76,6 +88,19 @@ fun Catalog.allVideoLocations(): List<VideoLocation> = editions.flatMap { editio
 
 fun Catalog.findVideo(videoId: String): VideoLocation? =
     allVideoLocations().firstOrNull { it.video.id == videoId }
+
+fun Catalog.allAttachmentLocations(): List<AttachmentLocation> = editions.flatMap { edition ->
+    edition.courses.flatMap { course ->
+        course.attachmentSections().mapNotNull { section ->
+            section.attachment?.let { attachment ->
+                AttachmentLocation(edition, course, section, attachment)
+            }
+        }
+    }
+}
+
+fun Catalog.findAttachment(attachmentId: String): AttachmentLocation? =
+    allAttachmentLocations().firstOrNull { it.attachment.id == attachmentId }
 
 fun Edition.findCourse(courseId: String): Course? = courses.firstOrNull { it.id == courseId }
 

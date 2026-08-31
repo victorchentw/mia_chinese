@@ -90,9 +90,19 @@ fun PlayerScreen(
 }
 
 @Composable
-private fun UnsupportedPlayerScreen(location: VideoLocation, onBack: () -> Unit) {
-    val requester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
+private fun UnsupportedPlayerScreen(
+    location: VideoLocation,
+    onBack: () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val backRequester = remember { FocusRequester() }
+    val externalRequester = remember { FocusRequester() }
+    var externalMessage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        runCatching {
+            if (location.video.isYouTube) externalRequester.requestFocus() else backRequester.requestFocus()
+        }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -111,11 +121,36 @@ private fun UnsupportedPlayerScreen(location: VideoLocation, onBack: () -> Unit)
                 style = MaterialTheme.typography.body1,
                 modifier = Modifier.padding(top = 12.dp)
             )
+            if (location.video.isYouTube) {
+                TvAction(
+                    onClick = {
+                        val result = mia.chinese.playback.launchExternalYouTube(
+                            context,
+                            location.video.videoId.orEmpty()
+                        )
+                        externalMessage = result.message
+                    },
+                    focusRequester = externalRequester,
+                    modifier = Modifier
+                        .padding(top = 24.dp)
+                        .fillMaxWidth()
+                ) {
+                    Text("開啟 SmartTube／外部播放器")
+                }
+                externalMessage?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.body2,
+                        color = MaterialTheme.colors.secondary,
+                        modifier = Modifier.padding(top = 12.dp)
+                    )
+                }
+            }
             TvAction(
                 onClick = onBack,
-                focusRequester = requester,
+                focusRequester = backRequester,
                 modifier = Modifier
-                    .padding(top = 24.dp)
+                    .padding(top = 12.dp)
                     .fillMaxWidth()
             ) {
                 Text("返回課程")
@@ -462,7 +497,8 @@ internal fun PlayerOverlay(
     onSeekBack: () -> Unit,
     onSeekForward: () -> Unit,
     onRetry: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenExternal: (() -> Unit)? = null
 ) {
     Box(
         modifier = Modifier
@@ -518,6 +554,11 @@ internal fun PlayerOverlay(
                 if (errorMessage != null) {
                     TvAction(onClick = onRetry, modifier = Modifier.width(170.dp)) {
                         Text("重新嘗試")
+                    }
+                }
+                onOpenExternal?.let { openExternal ->
+                    TvAction(onClick = openExternal, modifier = Modifier.width(220.dp)) {
+                        Text("外部播放")
                     }
                 }
                 Spacer(Modifier.weight(1f))
