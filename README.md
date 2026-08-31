@@ -1,8 +1,25 @@
 # Mia Chinese TV
 
-Android TV 國文影片課學習 App，版本 `v0.1.0`。
+Android TV 國文影片課學習 App，版本 `v0.1.1`。
 
-## v0.1.0 scope
+## Pi agent mandatory workflow
+
+以下是本 repository 的強制流程，不是建議。任何造成 repository 檔案變更的工作（包含文件修改）都必須完成一次版本遞增、驗證、簽章、commit 與 push：
+
+1. 修改前確認目前 branch 與工作目錄狀態。
+2. 在 `app/build.gradle.kts` 同時遞增：
+   - `versionName` 的第三碼（patch）：`0.1.0` → `0.1.1`。
+   - `versionCode` 整數：`1` → `2`。
+   同一個 task 的多個檔案只遞增一次；不得降低或重用版本。
+3. 完成修改後執行 `./gradlew test lint assembleDebug`。
+4. 使用下方 wiki signing key 執行 `assembleRelease`，並用 `apksigner verify` 驗證 APK。
+5. 確認沒有 private key、password、`local.properties` 或 signing secret 進入 Git。
+6. `git diff --check`，建立清楚的 commit。
+7. 使用 wiki 指定的 SSH key push 到 `origin main`；push 失敗不能假稱完成。
+
+若只需要檢查、不應產生 repository 修改，必須明確說明，不要偷偷修改版本。
+
+## Current v0.1.1 scope
 
 - Android TV / Google TV，min SDK 28
 - 內建 `app/src/main/assets/catalog/lessons.json` catalog baseline
@@ -16,8 +33,20 @@ Android TV 國文影片課學習 App，版本 `v0.1.0`。
 
 ## Build
 
+Unsigned/debug verification build:
+
 ```bash
 ./gradlew test lint assembleDebug
 ```
 
-APK 會產生於 `app/build/outputs/apk/debug/app-debug.apk`。
+使用 wiki 指定的既有 signing key 產生 release APK（密碼只從本機 secret／環境變數提供，不寫入 repo）：
+
+```bash
+MIA_SIGNING_STORE=/mnt/ssd/vvdoc/key/victor.keystore.jks \
+MIA_SIGNING_ALIAS=victor \
+MIA_SIGNING_PASSWORD='<從 wiki 取得>' \
+./gradlew assembleRelease
+```
+
+APK 會產生於 `app/build/outputs/apk/debug/app-debug.apk` 或
+`app/build/outputs/apk/release/app-release.apk`。

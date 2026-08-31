@@ -1,8 +1,26 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
 }
+
+// The signing material stays outside this repository. Values may be supplied
+// through -P properties or MIA_SIGNING_* environment variables on the build
+// machine; no password or keystore is committed here.
+val signingStore = providers.gradleProperty("miaSigningStore")
+    .orElse(providers.environmentVariable("MIA_SIGNING_STORE"))
+    .orNull
+val signingPassword = providers.gradleProperty("miaSigningPassword")
+    .orElse(providers.environmentVariable("MIA_SIGNING_PASSWORD"))
+    .orNull
+val signingAlias = providers.gradleProperty("miaSigningAlias")
+    .orElse(providers.environmentVariable("MIA_SIGNING_ALIAS"))
+    .orElse("victor")
+    .get()
+val signingFile = signingStore?.let { File(it) }
+val hasWikiSigning = signingFile?.isFile == true && !signingPassword.isNullOrBlank()
 
 android {
     namespace = "mia.chinese"
@@ -12,9 +30,20 @@ android {
         applicationId = "mia.chinese"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasWikiSigning) {
+            create("wikiRelease") {
+                storeFile = checkNotNull(signingFile)
+                storePassword = checkNotNull(signingPassword)
+                keyAlias = signingAlias
+                keyPassword = checkNotNull(signingPassword)
+            }
+        }
     }
 
     buildTypes {
@@ -24,6 +53,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasWikiSigning) signingConfig = signingConfigs.getByName("wikiRelease")
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -48,6 +78,15 @@ android {
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+}
+
+tasks.matching { it.name == "validateSigningRelease" }.configureEach {
+    doFirst {
+        check(hasWikiSigning) {
+            "Release APK must use the wiki signing key. Set MIA_SIGNING_STORE, " +
+                "MIA_SIGNING_PASSWORD, and MIA_SIGNING_ALIAS before assembleRelease."
+        }
     }
 }
 
