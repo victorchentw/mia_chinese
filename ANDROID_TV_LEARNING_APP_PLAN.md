@@ -4,7 +4,7 @@
 >
 > 本文件是 `mia_chinese` 的產品與實作規格。它包含原始需求，以及本次 review 補強的播放器風險、非同步狀態、內容更新、穩定 ID、生命週期與「繼續上次進度」流程。
 >
-> **目前狀態（v0.1.13 / versionCode 14）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；API 28 baseline 的 YouTube WebView 仍未通過通用 Go/No-Go，但目前 build 會先嘗試 WebView，失敗時提供 SmartTube／系統外部播放器 fallback。PDF 已加入 TV WebView 實驗頁與手機 QR code；真實目標 TV、媒體搬遷與家長功能仍是後續工作。
+> **目前狀態（v0.1.14 / versionCode 15）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；API 28 baseline 的 YouTube WebView 仍未通過通用 Go/No-Go，但目前 build 會先嘗試 WebView，失敗時提供 SmartTube／系統外部播放器 fallback。PDF 已加入 TV WebView 實驗頁與手機 QR code；真實目標 TV、媒體搬遷與家長功能仍是後續工作。
 
 ## 0. Repository 與工作約定
 
@@ -12,7 +12,7 @@
 
 - Git remote：`git@github.com:victorchentw/mia_chinese.git`
 - 本機 canonical working tree：`/mnt/ssd/mia_chinese`
-- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.13` 進行 release hardening。
+- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.14` 進行 release hardening。
 - 本文件應放在 repository root：`ANDROID_TV_LEARNING_APP_PLAN.md`。
 - 每個 Phase 完成一個可編譯、可驗收的 commit；沒有明確要求時不自動 push。
 
