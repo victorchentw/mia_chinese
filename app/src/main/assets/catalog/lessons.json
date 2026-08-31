@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "contentVersion": "v0.1.0-demo",
+  "updatedAt": "2026-09-01T12:00:00Z",
+  "editions": [
+    {
+      "id": "hanlin-g7-115-fall",
+      "name": "翰林版",
+      "grade": "七年級",
+      "semester": "115 學年度上學期",
+      "courses": [
+        {
+          "id": "hanlin-g7-115-fall-lesson-01",
+          "title": "第一課　夏夜",
+          "instructions": [
+            "黑板上的筆記請抄在課本上。",
+            "理解後再記憶，並在下次上課前完成課後考卷。"
+          ],
+          "sections": [
+            {
+              "id": "hanlin-g7-115-fall-lesson-01-part-01",
+              "order": 1,
+              "type": "video",
+              "title": "第一部分影片",
+              "description": "新詩／題解作者／第一段",
+              "video": {
+                "id": "hanlin-g7-115-fall-lesson-01-part-01-video",
+                "revision": 1,
+                "sourceType": "mp4",
+                "videoId": null,
+                "url": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+                "durationMs": null
+              }
+            },
+            {
+              "id": "hanlin-g7-115-fall-lesson-01-part-02",
+              "order": 2,
+              "type": "video",
+              "title": "第二部分影片",
+              "description": "第二段／形音義／課後練習題",
+              "video": {
+                "id": "hanlin-g7-115-fall-lesson-01-part-02-video",
+                "revision": 1,
+                "sourceType": "youtube",
+                "videoId": "XPvJgDZ06A8",
+                "url": "https://www.youtube.com/watch?v=XPvJgDZ06A8",
+                "durationMs": null
+              }
+            },
+            {
+              "id": "hanlin-g7-115-fall-lesson-01-answer",
+              "order": 3,
+              "type": "note",
+              "title": "課後練習卷答案",
+              "description": "題目卷已寄送紙本講義，不必列印。"
+            }
+          ]
+        },
+        {
+          "id": "hanlin-g7-115-fall-lesson-02",
+          "title": "第二課　無心的過錯",
+          "instructions": [
+            "先看完影片中的課文說明，再完成紙本練習。"
+          ],
+          "sections": [
+            {
+              "id": "hanlin-g7-115-fall-lesson-02-part-01",
+              "order": 1,
+              "type": "video",
+              "title": "課文講解",
+              "description": "課文結構與重要語詞",
+              "video": {
+                "id": "hanlin-g7-115-fall-lesson-02-part-01-video",
+                "revision": 1,
+                "sourceType": "mp4",
+                "videoId": null,
+                "url": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
+                "durationMs": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "kanghsuan-g7-115-fall",
+      "name": "康軒版",
+      "grade": "七年級",
+      "semester": "115 學年度上學期",
+      "courses": [
+        {
+          "id": "kanghsuan-g7-115-fall-lesson-01",
+          "title": "第一課　聲音鐘",
+          "instructions": [
+            "影片播放時，將老師的重點筆記記在紙本課本上。"
+          ],
+          "sections": [
+            {
+              "id": "kanghsuan-g7-115-fall-lesson-01-part-01",
+              "order": 1,
+              "type": "video",
+              "title": "課文導讀",
+              "description": "題解與課文朗讀",
+              "video": {
+                "id": "kanghsuan-g7-115-fall-lesson-01-part-01-video",
+                "revision": 1,
+                "sourceType": "mp4",
+                "videoId": null,
+                "url": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
+                "durationMs": null
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nani-g7-115-fall",
+      "name": "南一版",
+      "grade": "七年級",
+      "semester": "115 學年度上學期",
+      "courses": [
+        {
+          "id": "nani-g7-115-fall-lesson-01",
+          "title": "第一課　傘",
+          "instructions": [
+            "先閱讀學習提醒，再開始影片。"
+          ],
+          "sections": [
+            {
+              "id": "nani-g7-115-fall-lesson-01-part-01",
+              "order": 1,
+              "type": "video",
+              "title": "第一部分影片",
+              "description": "課文背景與段落理解",
+              "video": {
+                "id": "nani-g7-115-fall-lesson-01-part-01-video",
+                "revision": 1,
+                "sourceType": "mp4",
+                "videoId": null,
+                "url": "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
+                "durationMs": null
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
