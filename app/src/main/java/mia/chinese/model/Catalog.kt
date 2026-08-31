@@ -49,6 +49,7 @@ data class VideoItem(
     val sourceType: String = "",
     val videoId: String? = null,
     val url: String? = null,
+    val managedAssetId: String? = null,
     val durationMs: Long? = null
 ) {
     val isMp4: Boolean

@@ -8,6 +8,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Entity(
@@ -40,6 +42,16 @@ data class LastResumePointerEntity(
     val updatedAtMs: Long
 )
 
+@Entity(tableName = "last_catalog_location")
+data class LastCatalogLocationEntity(
+    @PrimaryKey val id: Int = 1,
+    val editionId: String?,
+    val courseId: String?,
+    val sectionId: String?,
+    val focusedItemId: String?,
+    val updatedAtMs: Long
+)
+
 @Dao
 interface ProgressDao {
     @Query("SELECT * FROM video_progress ORDER BY lastCheckpointAtMs DESC")
@@ -48,21 +60,58 @@ interface ProgressDao {
     @Query("SELECT * FROM last_resume_pointer WHERE id = 1 LIMIT 1")
     fun observeLastResumePointer(): Flow<LastResumePointerEntity?>
 
+    @Query("SELECT * FROM last_resume_pointer WHERE id = 1 LIMIT 1")
+    suspend fun getLastResumePointer(): LastResumePointerEntity?
+
+    @Query("SELECT * FROM last_catalog_location WHERE id = 1 LIMIT 1")
+    fun observeLastCatalogLocation(): Flow<LastCatalogLocationEntity?>
+
+    @Query("SELECT * FROM last_catalog_location WHERE id = 1 LIMIT 1")
+    suspend fun getLastCatalogLocation(): LastCatalogLocationEntity?
+
     @Query("SELECT * FROM video_progress WHERE videoId = :videoId AND revision = :revision LIMIT 1")
     suspend fun getProgress(videoId: String, revision: Int): VideoProgressEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertProgress(progress: VideoProgressEntity)
 
+    @Query("UPDATE video_progress SET status = 'STALE' WHERE videoId = :videoId AND revision = :revision")
+    suspend fun markStale(videoId: String, revision: Int)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertPointer(pointer: LastResumePointerEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCatalogLocation(location: LastCatalogLocationEntity)
 }
 
 @Database(
-    entities = [VideoProgressEntity::class, LastResumePointerEntity::class],
-    version = 1,
+    entities = [
+        VideoProgressEntity::class,
+        LastResumePointerEntity::class,
+        LastCatalogLocationEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class ChineseDatabase : RoomDatabase() {
     abstract fun progressDao(): ProgressDao
+}
+
+val CHINESE_DB_MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS last_catalog_location (
+                id INTEGER NOT NULL,
+                editionId TEXT,
+                courseId TEXT,
+                sectionId TEXT,
+                focusedItemId TEXT,
+                updatedAtMs INTEGER NOT NULL,
+                PRIMARY KEY(id)
+            )
+            """.trimIndent()
+        )
+    }
 }

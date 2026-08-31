@@ -33,6 +33,7 @@ fun TvAction(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester? = null,
+    onFocused: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -41,7 +42,10 @@ fun TvAction(
     Box(
         modifier = modifier
             .then(focusModifier)
-            .onFocusChanged { focused = it.isFocused }
+            .onFocusChanged {
+                focused = it.isFocused
+                if (it.isFocused) onFocused?.invoke()
+            }
             .clip(shape)
             .border(
                 width = if (focused) 3.dp else 1.dp,

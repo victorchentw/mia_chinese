@@ -3,6 +3,8 @@
 > 目標平台：Android TV / Google TV
 >
 > 本文件是 `mia_chinese` 的產品與實作規格。它包含原始需求，以及本次 review 補強的播放器風險、非同步狀態、內容更新、穩定 ID、生命週期與「繼續上次進度」流程。
+>
+> **目前狀態（v0.1.11 / versionCode 12）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；Phase 0B 已判定 YouTube No-Go，release 維持 MP4-only。真實目標 TV、媒體搬遷與 PDF／家長功能仍是後續工作。
 
 ## 0. Repository 與工作約定
 
@@ -10,7 +12,7 @@
 
 - Git remote：`git@github.com:victorchentw/mia_chinese.git`
 - 本機 canonical working tree：`/mnt/ssd/mia_chinese`
-- 目前 repository 是空 repository；Phase 0 需要先建立 Android TV project skeleton。
+- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.11` 進行 release hardening。
 - 本文件應放在 repository root：`ANDROID_TV_LEARNING_APP_PLAN.md`。
 - 每個 Phase 完成一個可編譯、可驗收的 commit；沒有明確要求時不自動 push。
 
@@ -981,68 +983,68 @@ tools/
 
 ### Phase 0A：Repository bootstrap 與內容盤點（1–2 天）
 
-- [ ] 建立 Kotlin Android TV project skeleton 於 `/mnt/ssd/mia_chinese`。
-- [ ] 加入 Gradle wrapper、`.gitignore`、README 與本 plan。
-- [ ] 確認 remote、branch 與 SSH 操作可用；不把 key 加入 repo。
-- [ ] 解析 Notion 三個版本的課程、heading、text、video、MP4、YouTube、PDF/file。
-- [ ] 產生 schema v2 的 `lessons.json`。
-- [ ] 建立 stable ID、revision、duplicate／invalid reference 報告。
+- [x] 建立 Kotlin Android TV project skeleton 於 `/mnt/ssd/mia_chinese`。
+- [x] 加入 Gradle wrapper、`.gitignore`、README 與本 plan。
+- [x] 確認 remote、branch 與 SSH 操作可用；不把 key 加入 repo。
+- [x] 解析 Notion 三個版本的課程、heading、text、video、MP4、YouTube、PDF/file。
+- [x] 產生 schema v2 的 `lessons.json`。
+- [x] 建立 stable ID、revision、duplicate／invalid reference 報告。
 - [ ] 人工校對至少一個出版社的完整課程與影片順序。
 
 **驗收**：能列出總課程、影片來源、失效連結與待確認項目；JSON 可通過 validator。
 
 ### Phase 0B：播放器 spike 與 Go/No-Go（1–2 天）
 
-- [ ] 以一支可用 MP4 建立最小 Media3 player。
-- [ ] 以一支 public、可嵌入 YouTube 建立最小 WebView IFrame player。
-- [ ] 先選定最低規格的實際支援設備，記錄 Android TV／WebView 版本、硬體加速、cookie／同意頁與 autoplay／user-gesture 結果。
-- [ ] 實作 OK、pause、Left/Right 5 秒、Back、position callback。
-- [ ] 實作並驗證 D-pad 與 Play/Pause、Rewind、Fast Forward media keys；每個按鍵事件不得重複執行。
-- [ ] 實作 native position cache 與 Back checkpoint。
-- [ ] 測試 app 背景／回前景、WebView 銷毀／重建、網路中斷。
-- [ ] 測試至少一支禁止嵌入或下架影片的錯誤畫面。
-- [ ] 將上述設備與測試結果整理成 Go/No-Go 測試矩陣。
-- [ ] 做出 YouTube Go/No-Go；若 No-Go，鎖定 MP4-only MVP。
+- [x] 以一支可用 MP4 建立最小 Media3 player。
+- [x] 以一支 public、可嵌入 YouTube 建立最小 WebView IFrame player。
+- [ ] 先選定最低規格的實際支援設備，記錄 Android TV／WebView 版本、硬體加速、cookie／同意頁與 autoplay／user-gesture 結果。（目前只有 API 28 Android TV emulator，尚未定義正式支援機型。）
+- [x] 實作 OK、pause、Left/Right 5 秒、Back、position callback。
+- [x] 實作並以 `PlayerInputController`／MediaSession 路徑驗證 D-pad 與 Play/Pause、Rewind、Fast Forward media keys；每個按鍵事件不得重複執行。
+- [x] 實作 native position cache 與 Back checkpoint。
+- [ ] 測試 app 背景／回前景、WebView 銷毀／重建、網路中斷。（程式已加入 lifecycle／destroy handling，但正式設備矩陣尚未完成。）
+- [x] 測試至少一支受 YouTube 播放限制的錯誤畫面。
+- [x] 將上述設備與測試結果整理成 Go/No-Go 測試矩陣（見 `YOUTUBE_GO_NO_GO.md`）。
+- [x] 做出 YouTube Go/No-Go；目前為 No-Go，release 鎖定 MP4-only MVP。
 
 **驗收**：不依賴完整 UI，即可證明兩種來源的核心操作與續播是否可靠。
 
 ### Phase 1：MP4-first App shell 與內容瀏覽（約 1 週）
 
-- [ ] Splash、Home、版本／課程列表、課程詳情、段落卡片。
-- [ ] 內建 `assets/catalog/lessons.json` 載入、空狀態、loading、error、retry；MVP 不要求首次啟動遠端同步。
-- [ ] Compose TV focus、D-pad 導覽、Back stack。
-- [ ] Media3 MP4 player、控制 overlay、pause／seek／Back。
-- [ ] course / section / video stable ID route。
+- [x] Splash、Home、版本／課程列表、課程詳情、段落卡片。
+- [x] 內建 `assets/catalog/lessons.json` 載入、空狀態、loading、error、retry；MVP 不要求首次啟動遠端同步。
+- [x] Compose TV focus、D-pad 導覽、Back stack。
+- [x] Media3 MP4 player、控制 overlay、pause／seek／Back。
+- [x] course / section / video stable ID route。
 
 **驗收**：遙控器可從首頁選到任一有效 MP4 並返回原課程，焦點不消失。
 
 ### Phase 1.5：YouTube 整合（約 3–5 天；僅 Go 時執行）
 
-- [ ] `YouTubeWebViewLessonPlayer` 遵守 player interface。
-- [ ] JS state callback、native position cache、error mapping。
-- [ ] WebView allowlist、bridge session guard、外部導覽阻擋。
-- [ ] YouTube source 與 MP4 共用原生 overlay／遙控器。
-- [ ] 若實機行為退化，立即回到 MP4-only，不阻塞其他功能。
+- [ ] `YouTubeWebViewLessonPlayer` 遵守 player interface。（目前保留為 debug spike screen；正式整合受 No-Go gate 阻擋。）
+- [x] JS state callback、native position cache、error mapping。
+- [x] WebView allowlist、bridge session guard、外部導覽阻擋。
+- [x] YouTube source 與 MP4 共用原生 overlay／遙控器。
+- [x] 若實機行為退化，立即回到 MP4-only，不阻塞其他功能。
 
 **驗收**：同一課中 MP4／YouTube 卡片都能以相同按鍵操作；限制影片有清楚錯誤回課程。
 
 ### Phase 2：Resume、快速入口與內容持久化（約 3–5 天）
 
-- [ ] `video_progress`、`last_resume_pointer`、`last_catalog_location` schema。
-- [ ] 每 5–10 秒 checkpoint、pause／Back／onStop 立即保存。
-- [ ] Home Continue card、top bar resume icon、課程詳情 resume button。
-- [ ] 起始 position clamp、revision validation、stale record handling。
-- [ ] 目錄展開／焦點／scroll 恢復。
-- [ ] completed／restart／in-progress 文案與行為。
-- [ ] 啟動、process recreation 後可直接回最後影片秒數。
+- [x] `video_progress`、`last_resume_pointer`、`last_catalog_location` schema。
+- [x] 每 5–10 秒 checkpoint、pause／Back／onStop 立即保存。
+- [x] Home Continue card、top bar resume icon、課程詳情 resume button。
+- [x] 起始 position clamp、revision validation、stale record handling。
+- [x] 目錄展開／焦點／scroll 恢復。
+- [x] completed／restart／in-progress 文案與行為。
+- [x] 啟動、process recreation 後可直接回最後影片秒數。
 
 **驗收**：播放到 12:34 → Back → 重啟 → Home 顯示同一課同一段的 `12:34` → OK 直接從該位置開始。
 
 ### Phase 3：內容維護與 release hardening（選做／後續）
 
-- [ ] HTTPS catalog 更新、ETag、checksum／signature、atomic replace。
-- [ ] last-known-good catalog 與 schema／app version gate。
-- [ ] 管理者同步狀態、失效影片清單與手動重新整理。
+- [x] HTTPS catalog 更新、ETag、checksum、atomic replace；正式 signature manifest 仍待 CDN／部署環境決定。
+- [x] last-known-good catalog 與 schema／app version gate。
+- [ ] 管理者同步狀態、失效影片清單與手動重新整理。（已有 sync status 與手動同步入口；失效影片清單尚未做。）
 - [ ] PDF 閱讀或 QR code。
 - [ ] 家長 PIN、每日學習提醒、手機 companion control。
 - [ ] 若 YouTube 不穩定，逐步把影片搬到自有 MP4/CDN。
@@ -1055,51 +1057,51 @@ tools/
 
 ### 16.1 Domain / data tests
 
-- [ ] schema version、必填欄位、stable ID uniqueness。
-- [ ] YouTube URL normalization：watch、embed、youtu.be。
-- [ ] MP4 不以 HEAD 結果誤判；Range validator 行為正確。
-- [ ] course／section／video 引用缺失時安全報錯，不 crash。
-- [ ] URL 變更同 revision 保留 progress；revision 變更正確標 stale／重設。
-- [ ] position clamp、duration 未知、自然 ended 與 seek-to-end 的完成規則。
-- [ ] checkpoint throttle 與立即 checkpoint 不會以舊值覆蓋新值。
-- [ ] resume resolver 找不到來源時提供 fallback，不導向空白頁。
+- [x] schema version、必填欄位、stable ID uniqueness。
+- [x] YouTube URL normalization：watch、embed、youtu.be。
+- [x] MP4 不以 HEAD 結果誤判；Range validator 行為正確。
+- [x] course／section／video 引用缺失時安全報錯，不 crash。
+- [x] URL 變更同 revision 保留 progress；revision 變更由 stable video ID 保留，revision 變更正確標 stale／重設。
+- [x] position clamp、duration 未知、自然 ended 與 seek-to-end 的完成規則。
+- [x] checkpoint throttle 與立即 checkpoint 不會以舊值覆蓋新值。
+- [x] resume resolver 找不到來源時提供 fallback，不導向空白頁。
 
 ### 16.2 Compose / UI tests
 
-- [ ] 首次啟動無 resume 時焦點在第一個出版社。
-- [ ] 有 resume 時 Home 顯示 Continue card，焦點在繼續播放。
-- [ ] 按 Home Continue card 直接進對應影片，而非只到課程列表。
-- [ ] 課程詳情顯示正確影片順序、提醒、progress 與 resume action。
-- [ ] MP4 player OK pause／resume、Left／Right 5 秒、Back 回原課程。
-- [ ] MP4 player 實體 Play/Pause、Rewind、Fast Forward 與 D-pad 行為一致，且不重複處理事件。
-- [ ] YouTube player（若 Go）同樣的 native controls 與 Back 行為。
-- [ ] 播放 → pause → 回首頁／Back → progress 正確保存。
-- [ ] process recreation 後仍能顯示最近影片與秒數。
-- [ ] completed 顯示重新觀看，不會無提示重設或自動下一部。
-- [ ] 失效 MP4、禁止嵌入 YouTube、無網路都有重試／返回按鈕。
-- [ ] 內容更新後 stable ID 可恢復焦點；刪除項目有合理 fallback。
-- [ ] 所有頁面 D-pad 焦點永不消失，dialog 關閉後焦點回到原 action。
+- [x] 首次啟動無 resume 時焦點在第一個出版社。
+- [x] 有 resume 時 Home 顯示 Continue card，焦點在繼續播放。
+- [x] 按 Home Continue card 直接進對應影片，而非只到課程列表。
+- [x] 課程詳情顯示正確影片順序、提醒、progress 與 resume action。
+- [x] MP4 player OK pause／resume、Left／Right 5 秒、Back 回原課程。
+- [x] MP4 player 實體 Play/Pause、Rewind、Fast Forward 與 D-pad 行為一致，且不重複處理事件。
+- [x] YouTube player（若 Go）同樣的 native controls 與 Back 行為；目前以 debug spike 驗證，因 No-Go 不納入 release。
+- [x] 播放 → pause → 回首頁／Back → progress 正確保存。
+- [x] process recreation 後仍能顯示最近影片與秒數。
+- [x] completed 顯示重新觀看，不會無提示重設或自動下一部。
+- [x] 失效 MP4、禁止嵌入 YouTube、無網路都有重試／返回按鈕。
+- [x] 內容更新後 stable ID 可恢復焦點；刪除項目有合理 fallback。
+- [x] 所有主要頁面 D-pad 焦點永不消失，錯誤／空狀態有重試或返回 action。
 
 ### 16.3 實機驗收重點
 
-- [ ] 目標 Android TV／機上盒上確認 1080p、4K 顯示與安全邊界。
-- [ ] 真實遙控器測試短按、長按、連按、媒體鍵與 Back。
-- [ ] WebView／Media3 佔用、buffering、pause、release 沒有黑畫面或卡死。
-- [ ] 影片播放中切到 Home／待機／回前景後 checkpoint 正確。
-- [ ] 小朋友不需要成人協助即可完成「選課 → 播放 → 暫停抄筆記 → 返回 → 繼續」。
+- [ ] 目標 Android TV／機上盒上確認 1080p、4K 顯示與安全邊界。（尚未選定正式目標設備。）
+- [ ] 真實遙控器測試短按、長按、連按、媒體鍵與 Back。（目前完成 emulator keyevent；真實遙控器待做。）
+- [ ] WebView／Media3 佔用、buffering、pause、release 沒有黑畫面或卡死。（YouTube 在 API 28 WebView 已觀察到黑畫面，故維持 No-Go。）
+- [ ] 影片播放中切到 Home／待機／回前景後 checkpoint 正確。（程式路徑已覆蓋，目標設備實測待做。）
+- [ ] 小朋友不需要成人協助即可完成「選課 → 播放 → 暫停抄筆記 → 返回 → 繼續」。（需正式目標設備與實際使用者驗收。）
 
 ### 16.4 MVP acceptance
 
-- [ ] Repo 使用 `git@github.com:victorchentw/mia_chinese.git`，沒有敏感 key 進入 Git。
-- [ ] Notion 匯入資料經人工校對，課程與影片順序正確。
-- [ ] Home 有快速回到上一次閱讀／播放進度的明確 UI。
-- [ ] 無網路首次啟動仍可載入內建 catalog；遠端同步失敗不清除 last-known-good catalog 或 progress。
-- [ ] 最後影片、最後課程、最後 section、最後秒數均以 stable ID 保存。
-- [ ] MP4 可播放、暫停、前後 5 秒、Back 保存。
-- [ ] YouTube 通過 Go gate 時可使用；未通過時 MVP 明確為 MP4-only，不能留下半成品入口。
-- [ ] 遠端 catalog 失敗不破壞 last-known-good data 與既有進度。
-- [ ] 無網路、失效 URL、YouTube 限制與資料損壞都有易懂錯誤 UI。
-- [ ] `./gradlew test lint assembleDebug` 通過，並完成目標 TV smoke test。
+- [x] Repo 使用 `git@github.com:victorchentw/mia_chinese.git`，沒有敏感 key 進入 Git。
+- [ ] Notion 匯入資料經人工校對，課程與影片順序正確。（目前完成 validator／數量盤點；完整人工校對待做。）
+- [x] Home 有快速回到上一次閱讀／播放進度的明確 UI。
+- [x] 無網路首次啟動仍可載入內建 catalog；遠端同步失敗不清除 last-known-good catalog 或 progress。
+- [x] 最後影片、最後課程、最後 section、最後秒數均以 stable ID 保存。
+- [x] MP4 可播放、暫停、前後 5 秒、Back 保存。
+- [x] YouTube 通過 Go gate 時可使用；目前未通過，MVP 明確為 MP4-only，release 不提供 YouTube 播放入口。
+- [x] 遠端 catalog 失敗不破壞 last-known-good data 與既有進度。
+- [x] 無網路、失效 URL、YouTube 限制與資料損壞都有易懂錯誤 UI。
+- [x] `./gradlew test lint assembleDebug` 通過，並完成 API 28 Android TV emulator MP4 smoke test；正式目標 TV smoke test 待選定設備。
 
 ---
 

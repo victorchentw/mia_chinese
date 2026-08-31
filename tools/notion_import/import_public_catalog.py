@@ -18,6 +18,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from validate_catalog.validate_catalog import report, validate_catalog  # noqa: E402
+
 DEFAULT_PAGE_ID = "39e62249-b4ca-8067-9529-fdf2ec7f9f32"
 DEFAULT_HOST = "sly-clove-390.notion.site"
 
@@ -331,14 +334,31 @@ def main() -> int:
         action="store_true",
         help="fetch and summarize the catalog without writing the output file",
     )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        help="optional JSON validation report path",
+    )
     args = parser.parse_args()
     try:
         catalog = import_catalog(args.page_id, args.host, args.workers)
+        errors = validate_catalog(catalog)
+        if errors:
+            raise RuntimeError("generated catalog failed validation:\n" + "\n".join(errors))
+        output_text = json.dumps(catalog, ensure_ascii=False, indent=2) + "\n"
+        if args.report:
+            args.report.parent.mkdir(parents=True, exist_ok=True)
+            args.report.write_text(
+                json.dumps(
+                    report(catalog, errors, raw_bytes=output_text.encode("utf-8")),
+                    ensure_ascii=False,
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+            )
         if not args.dry_run:
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(
-                json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-            )
+            args.output.write_text(output_text, encoding="utf-8")
     except Exception as error:  # noqa: BLE001 - CLI should return a useful error
         print(f"Notion import failed: {error}", file=sys.stderr)
         return 1

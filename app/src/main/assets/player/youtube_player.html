@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mia YouTube Player</title>
+    <style>
+        html, body, #player { width: 100%; height: 100%; margin: 0; padding: 0; background: #000; overflow: hidden; }
+    </style>
+</head>
+<body>
+<div id="player"></div>
+<script>
+(function () {
+    "use strict";
+
+    var query = new URLSearchParams(window.location.search);
+    var videoId = query.get("videoId") || "";
+    var session = query.get("session") || "";
+    var player = null;
+    var timer = null;
+    var pendingPlay = false;
+    var pendingSeek = null;
+
+    // Android TV API 28 WebView/Chromium may not expose queueMicrotask,
+    // while the current YouTube widget bootstrap uses it.
+    if (!window.queueMicrotask) {
+        window.queueMicrotask = function (callback) {
+            Promise.resolve().then(callback);
+        };
+    }
+
+    function send(event, values) {
+        if (!window.AndroidPlayer || !window.AndroidPlayer.postMessage) return;
+        var payload = values || {};
+        payload.event = event;
+        payload.session = session;
+        window.AndroidPlayer.postMessage(JSON.stringify(payload));
+    }
+
+    function stateName(state) {
+        switch (state) {
+            case YT.PlayerState.PLAYING: return "playing";
+            case YT.PlayerState.PAUSED: return "paused";
+            case YT.PlayerState.ENDED: return "ended";
+            case YT.PlayerState.BUFFERING: return "buffering";
+            case YT.PlayerState.CUED: return "cued";
+            default: return "unstarted";
+        }
+    }
+
+    function reportPosition() {
+        if (!player || !player.getCurrentTime) return;
+        var position = Number(player.getCurrentTime()) || 0;
+        var duration = Number(player.getDuration()) || 0;
+        send("progress", {
+            positionMs: Math.max(0, Math.round(position * 1000)),
+            durationMs: duration > 0 ? Math.round(duration * 1000) : 0
+        });
+    }
+
+    function onPlayerReady() {
+        send("ready", { durationMs: Math.max(0, Math.round((Number(player.getDuration()) || 0) * 1000)) });
+        if (pendingSeek !== null && typeof player.seekTo === "function") {
+            player.seekTo(pendingSeek, true);
+            pendingSeek = null;
+        }
+        if (pendingPlay && typeof player.playVideo === "function") {
+            pendingPlay = false;
+            player.playVideo();
+        }
+        if (timer === null) timer = window.setInterval(reportPosition, 250);
+    }
+
+    function onStateChange(event) {
+        send("state", { state: stateName(event.data) });
+        reportPosition();
+    }
+
+    function onPlayerError(event) {
+        send("error", { code: Number(event.data) || 0 });
+    }
+
+    function onAutoplayBlocked() {
+        send("autoplayBlocked", {});
+    }
+
+    window.miaYouTubePlay = function () {
+        if (player && typeof player.playVideo === "function") {
+            pendingPlay = false;
+            player.playVideo();
+        } else {
+            pendingPlay = true;
+        }
+    };
+    window.miaYouTubePause = function () {
+        pendingPlay = false;
+        if (player && typeof player.pauseVideo === "function") player.pauseVideo();
+    };
+    window.miaYouTubeSeekTo = function (seconds) {
+        var target = Math.max(0, Number(seconds) || 0);
+        if (player && typeof player.seekTo === "function") {
+            pendingSeek = null;
+            player.seekTo(target, true);
+        } else {
+            pendingSeek = target;
+        }
+    };
+    window.miaYouTubeReload = function () {
+        if (player) player.loadVideoById(videoId);
+    };
+
+    window.onYouTubeIframeAPIReady = function () {
+        if (!videoId) {
+            send("error", { code: -1 });
+            return;
+        }
+        player = new YT.Player("player", {
+            videoId: videoId,
+            playerVars: {
+                autoplay: 0,
+                controls: 0,
+                disablekb: 1,
+                enablejsapi: 1,
+                modestbranding: 1,
+                playsinline: 1,
+                rel: 0,
+                origin: "https://appassets.androidplatform.net"
+            },
+            events: {
+                onReady: onPlayerReady,
+                onStateChange: onStateChange,
+                onError: onPlayerError,
+                onAutoplayBlocked: onAutoplayBlocked
+            }
+        });
+    };
+
+    var script = document.createElement("script");
+    script.src = "https://www.youtube.com/iframe_api";
+    script.onerror = function () { send("error", { code: -2 }); };
+    document.head.appendChild(script);
+}());
+</script>
+</body>
+</html>

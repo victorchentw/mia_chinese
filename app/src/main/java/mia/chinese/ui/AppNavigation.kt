@@ -1,6 +1,9 @@
 package mia.chinese.ui
 
 import android.net.Uri
+import java.text.DateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +28,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,15 +48,24 @@ import androidx.navigation.NavHostController
 import mia.chinese.BuildConfig
 import mia.chinese.ChineseLearningApp
 import mia.chinese.CatalogLoadState
+import mia.chinese.CatalogSyncState
 import mia.chinese.MainViewModel
+import kotlinx.coroutines.launch
+import mia.chinese.data.CatalogMetadata
+import mia.chinese.data.CatalogRepository
+import mia.chinese.data.LastCatalogLocationEntity
 import mia.chinese.data.LastResumePointerEntity
 import mia.chinese.data.ProgressStatus
 import mia.chinese.data.ProgressRepository
+import mia.chinese.data.ResumeTargetResolver
 import mia.chinese.data.VideoProgressEntity
 import mia.chinese.model.Catalog
 import mia.chinese.model.Course
 import mia.chinese.model.Edition
+import mia.chinese.model.Section
 import mia.chinese.model.VideoLocation
+import mia.chinese.playback.PlaybackPolicy
+import mia.chinese.playback.clampPosition
 import mia.chinese.model.attachmentSections
 import mia.chinese.model.findCourse
 import mia.chinese.model.findVideo
@@ -62,6 +75,7 @@ import mia.chinese.model.videoSections
 import mia.chinese.ui.theme.MiaChineseTheme
 
 private const val HOME_ROUTE = "home"
+private const val SETTINGS_ROUTE = "settings"
 private const val EDITION_ROUTE = "edition/{editionId}"
 private const val COURSE_ROUTE = "course/{courseId}"
 private const val PLAYER_ROUTE = "player/{videoId}?startPositionMs={startPositionMs}"
@@ -83,6 +97,8 @@ fun MiaChineseApp(application: ChineseLearningApp) {
     val catalogState by viewModel.catalogState.collectAsState()
     val progress by viewModel.allProgress.collectAsState()
     val pointer by viewModel.lastResumePointer.collectAsState()
+    val catalogLocation by viewModel.lastCatalogLocation.collectAsState()
+    val syncState by viewModel.syncState.collectAsState()
 
     MiaChineseTheme {
         when (val state = catalogState) {
@@ -95,7 +111,12 @@ fun MiaChineseApp(application: ChineseLearningApp) {
                 catalog = state.catalog,
                 progress = progress,
                 pointer = pointer,
-                progressRepository = application.progressRepository
+                catalogLocation = catalogLocation,
+                progressRepository = application.progressRepository,
+                catalogRepository = application.catalogRepository,
+                syncState = syncState,
+                onReloadCatalog = viewModel::retry,
+                onSyncCatalog = viewModel::syncCatalog
             )
         }
     }
@@ -106,11 +127,39 @@ private fun CatalogNavigation(
     catalog: Catalog,
     progress: List<VideoProgressEntity>,
     pointer: LastResumePointerEntity?,
-    progressRepository: ProgressRepository
+    catalogLocation: LastCatalogLocationEntity?,
+    progressRepository: ProgressRepository,
+    catalogRepository: CatalogRepository,
+    syncState: CatalogSyncState,
+    onReloadCatalog: () -> Unit,
+    onSyncCatalog: () -> Unit
 ) {
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
+
+    fun saveCatalogLocation(
+        editionId: String? = null,
+        courseId: String? = null,
+        sectionId: String? = null,
+        focusedItemId: String? = null
+    ) {
+        scope.launch {
+            progressRepository.saveCatalogLocation(
+                editionId = editionId,
+                courseId = courseId,
+                sectionId = sectionId,
+                focusedItemId = focusedItemId
+            )
+        }
+    }
 
     fun openPlayer(location: VideoLocation, startPositionMs: Long, addCourseToBackStack: Boolean = false) {
+        saveCatalogLocation(
+            editionId = location.edition.id,
+            courseId = location.course.id,
+            sectionId = location.section.id,
+            focusedItemId = location.video.id
+        )
         if (addCourseToBackStack) navController.navigate(coursePath(location.course.id))
         navController.navigate(playerPath(location.video.id, startPositionMs.coerceAtLeast(0L)))
     }
@@ -125,9 +174,26 @@ private fun CatalogNavigation(
                 catalog = catalog,
                 progress = progress,
                 pointer = pointer,
-                onOpenEdition = { navController.navigate(editionPath(it.id)) },
+                catalogLocation = catalogLocation,
+                onOpenEdition = {
+                    saveCatalogLocation(editionId = it.id)
+                    navController.navigate(editionPath(it.id))
+                },
+                onEditionFocused = { edition ->
+                    saveCatalogLocation(editionId = edition.id)
+                },
+                onOpenSettings = { navController.navigate(SETTINGS_ROUTE) },
                 onResume = { location, start -> openPlayer(location, start, addCourseToBackStack = true) },
                 onRestart = { location -> openPlayer(location, 0L, addCourseToBackStack = true) }
+            )
+        }
+        composable(SETTINGS_ROUTE) {
+            SettingsScreen(
+                metadata = catalogRepository.cachedMetadata(),
+                syncState = syncState,
+                onBack = { navController.popBackStack() },
+                onReloadCatalog = onReloadCatalog,
+                onSyncCatalog = onSyncCatalog
             )
         }
         composable(
@@ -143,8 +209,15 @@ private fun CatalogNavigation(
                 EditionScreen(
                     edition = edition,
                     progress = progress,
+                    catalogLocation = catalogLocation,
                     onBack = { navController.popBackStack() },
-                    onOpenCourse = { navController.navigate(coursePath(it.id)) }
+                    onOpenCourse = {
+                        saveCatalogLocation(editionId = edition.id, courseId = it.id)
+                        navController.navigate(coursePath(it.id))
+                    },
+                    onCourseFocused = { course ->
+                        saveCatalogLocation(editionId = edition.id, courseId = course.id)
+                    }
                 )
             }
         }
@@ -164,9 +237,18 @@ private fun CatalogNavigation(
                     edition = edition,
                     course = course,
                     progress = progress,
+                    catalogLocation = catalogLocation,
                     onBack = { navController.popBackStack() },
                     onOpenVideo = { location, start -> openPlayer(location, start) },
-                    onRestartVideo = { location -> openPlayer(location, 0L) }
+                    onRestartVideo = { location -> openPlayer(location, 0L) },
+                    onSectionFocused = { section ->
+                        saveCatalogLocation(
+                            editionId = edition.id,
+                            courseId = course.id,
+                            sectionId = section.id,
+                            focusedItemId = section.video?.id
+                        )
+                    }
                 )
             }
         }
@@ -187,7 +269,9 @@ private fun CatalogNavigation(
             } else {
                 val persisted = location.video.progressFrom(progress)
                 val requestedStart = entry.arguments?.getLong("startPositionMs") ?: -1L
-                val start = if (requestedStart >= 0L) requestedStart else persisted?.positionMs ?: 0L
+                val rawStart = if (requestedStart >= 0L) requestedStart else persisted?.positionMs ?: 0L
+                val knownDuration = location.video.durationMs ?: persisted?.durationMs
+                val start = clampPosition(rawStart, knownDuration)
                 PlayerScreen(
                     location = location,
                     startPositionMs = start,
@@ -248,8 +332,10 @@ private fun ErrorScreen(message: String, onRetry: () -> Unit) {
 
 @Composable
 private fun MissingContentScreen(onBack: () -> Unit) {
+    val requester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
     ScreenFrame {
-        ScreenHeader(title = "找不到教材", onBack = onBack)
+        ScreenHeader(title = "找不到教材", onBack = onBack, backFocusRequester = requester)
         TvPanel(modifier = Modifier.padding(top = 32.dp)) {
             Text("教材內容可能已更新，請返回上一頁重新選擇。")
         }
@@ -257,32 +343,114 @@ private fun MissingContentScreen(onBack: () -> Unit) {
 }
 
 @Composable
+private fun SettingsScreen(
+    metadata: CatalogMetadata?,
+    syncState: CatalogSyncState,
+    onBack: () -> Unit,
+    onReloadCatalog: () -> Unit,
+    onSyncCatalog: () -> Unit
+) {
+    val requester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
+    ScreenFrame {
+        ScreenHeader(title = "設定", onBack = onBack)
+        TvPanel(modifier = Modifier.padding(top = 30.dp).fillMaxWidth()) {
+            Text("課程資料", style = MaterialTheme.typography.h6)
+            Text(
+                "目前使用已驗證的 APK／本機課程資料，不會因網路中斷而清空課程或播放進度。",
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            Text(
+                "內容版本：${metadata?.contentVersion ?: "內建 baseline"}",
+                style = MaterialTheme.typography.body2,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+            Text(
+                "最後成功寫入本機：${formatCatalogDate(metadata?.downloadedAtMs)}",
+                style = MaterialTheme.typography.body2,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            TvAction(
+                onClick = onReloadCatalog,
+                focusRequester = requester,
+                modifier = Modifier.padding(top = 20.dp).width(270.dp)
+            ) {
+                Text("重新載入課程資料")
+            }
+            TvAction(
+                onClick = onSyncCatalog,
+                modifier = Modifier.padding(top = 12.dp).width(270.dp)
+            ) {
+                Text("手動同步遠端資料")
+            }
+            Text(
+                text = when (syncState) {
+                    CatalogSyncState.Idle -> "遠端同步尚未執行"
+                    CatalogSyncState.Unconfigured -> "尚未設定遠端 catalog endpoint；目前安全使用 APK baseline"
+                    CatalogSyncState.Running -> "同步中…目前資料仍可使用"
+                    is CatalogSyncState.Success -> syncState.message
+                    is CatalogSyncState.Error -> "同步失敗：${syncState.message}（已保留目前資料）"
+                },
+                style = MaterialTheme.typography.body2,
+                color = when (syncState) {
+                    is CatalogSyncState.Error -> MaterialTheme.colors.error
+                    else -> MaterialTheme.colors.onBackground.copy(alpha = 0.72f)
+                },
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+        TvPanel(modifier = Modifier.padding(top = 18.dp).fillMaxWidth()) {
+            Text("播放提示", style = MaterialTheme.typography.h6)
+            Text(
+                "MP4 使用原生播放器；YouTube 僅在 debug spike 中開啟，正式版等待目標 Android TV Go/No-Go 簽核。",
+                style = MaterialTheme.typography.body1,
+                modifier = Modifier.padding(top = 10.dp)
+            )
+        }
+    }
+}
+
+private fun formatCatalogDate(timestampMs: Long?): String {
+    if (timestampMs == null || timestampMs <= 0L) return "尚無紀錄"
+    return DateFormat.getDateTimeInstance(
+        DateFormat.SHORT,
+        DateFormat.SHORT,
+        Locale.TAIWAN
+    ).format(Date(timestampMs))
+}
+
+@Composable
 private fun HomeScreen(
     catalog: Catalog,
     progress: List<VideoProgressEntity>,
     pointer: LastResumePointerEntity?,
+    catalogLocation: LastCatalogLocationEntity?,
     onOpenEdition: (Edition) -> Unit,
+    onEditionFocused: (Edition) -> Unit,
+    onOpenSettings: () -> Unit,
     onResume: (VideoLocation, Long) -> Unit,
     onRestart: (VideoLocation) -> Unit
 ) {
-    val resumeLocation = remember(catalog, pointer) {
-        pointer?.let { candidate ->
-            catalog.findVideo(candidate.videoId)?.takeIf { location ->
-                location.edition.id == candidate.editionId &&
-                    location.course.id == candidate.courseId &&
-                    location.section.id == candidate.sectionId &&
-                    location.video.revision == candidate.revision
-            }
-        }
+    val resumeResolution = remember(catalog, pointer, progress) {
+        ResumeTargetResolver.resolve(catalog, pointer, progress)
     }
+    val resumeLocation = resumeResolution.location
     val resumeProgress = resumeLocation?.video?.progressFrom(progress)
     val continueRequester = remember { FocusRequester() }
+    val fallbackRequester = remember { FocusRequester() }
     val firstEditionRequester = remember { FocusRequester() }
+    val rememberedEditionRequester = remember { FocusRequester() }
+    val rememberedEditionId = catalogLocation?.editionId?.takeIf { id -> catalog.editions.any { it.id == id } }
 
-    LaunchedEffect(resumeLocation?.video?.id, catalog.editions.firstOrNull()?.id) {
+    LaunchedEffect(resumeLocation?.video?.id, rememberedEditionId, catalog.editions.firstOrNull()?.id) {
         runCatching {
-            if (resumeLocation != null) continueRequester.requestFocus()
-            else firstEditionRequester.requestFocus()
+            when {
+                resumeLocation != null -> continueRequester.requestFocus()
+                resumeResolution.fallback != null -> fallbackRequester.requestFocus()
+                rememberedEditionId != null -> rememberedEditionRequester.requestFocus()
+                else -> firstEditionRequester.requestFocus()
+            }
         }
     }
 
@@ -290,6 +458,24 @@ private fun HomeScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Mia 國文影片課", style = MaterialTheme.typography.h4)
             Spacer(Modifier.weight(1f))
+            if (resumeLocation != null) {
+                TvAction(
+                    onClick = {
+                        val start = if (resumeProgress?.status == ProgressStatus.COMPLETED.name) {
+                            0L
+                        } else {
+                            resumeProgress?.positionMs ?: 0L
+                        }
+                        onResume(resumeLocation, start)
+                    },
+                    modifier = Modifier.width(250.dp)
+                ) {
+                    Text("回到上次進度")
+                }
+            }
+            TvAction(onClick = onOpenSettings, modifier = Modifier.width(140.dp)) {
+                Text("設定")
+            }
             Text(
                 text = "v${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.body2,
@@ -302,6 +488,26 @@ private fun HomeScreen(
             style = MaterialTheme.typography.body1,
             modifier = Modifier.padding(top = 8.dp)
         )
+
+        resumeResolution.staleReason?.let { reason ->
+            TvPanel(modifier = Modifier.fillMaxWidth().padding(top = 22.dp)) {
+                Text("無法直接恢復上次位置", style = MaterialTheme.typography.h6)
+                Text(
+                    reason,
+                    style = MaterialTheme.typography.body1,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                resumeResolution.fallback?.let { fallback ->
+                    TvAction(
+                        onClick = { onResume(fallback, 0L) },
+                        focusRequester = fallbackRequester,
+                        modifier = Modifier.padding(top = 14.dp).width(250.dp)
+                    ) {
+                        Text("開啟本課程第一部影片")
+                    }
+                }
+            }
+        }
 
         if (resumeLocation != null) {
             Text(
@@ -369,7 +575,12 @@ private fun HomeScreen(
             catalog.editions.forEachIndexed { index, edition ->
                 TvAction(
                     onClick = { onOpenEdition(edition) },
-                    focusRequester = if (resumeLocation == null && index == 0) firstEditionRequester else null,
+                    onFocused = { onEditionFocused(edition) },
+                    focusRequester = when {
+                        resumeLocation == null && edition.id == rememberedEditionId -> rememberedEditionRequester
+                        resumeLocation == null && rememberedEditionId == null && index == 0 -> firstEditionRequester
+                        else -> null
+                    },
                     modifier = Modifier
                         .width(300.dp)
                         .heightIn(min = 116.dp)
@@ -396,11 +607,26 @@ private fun HomeScreen(
 private fun EditionScreen(
     edition: Edition,
     progress: List<VideoProgressEntity>,
+    catalogLocation: LastCatalogLocationEntity?,
     onBack: () -> Unit,
-    onOpenCourse: (Course) -> Unit
+    onOpenCourse: (Course) -> Unit,
+    onCourseFocused: (Course) -> Unit
 ) {
     val firstRequester = remember { FocusRequester() }
-    LaunchedEffect(edition.id) { runCatching { firstRequester.requestFocus() } }
+    val rememberedRequester = remember { FocusRequester() }
+    val courseListState = rememberLazyListState()
+    val rememberedCourseId = catalogLocation?.courseId?.takeIf { id -> edition.courses.any { it.id == id } }
+    LaunchedEffect(edition.id, rememberedCourseId) {
+        runCatching {
+            if (rememberedCourseId != null) {
+                val index = edition.courses.indexOfFirst { it.id == rememberedCourseId }
+                courseListState.scrollToItem((index + 1).coerceAtLeast(0))
+                rememberedRequester.requestFocus()
+            } else {
+                firstRequester.requestFocus()
+            }
+        }
+    }
 
     ScreenFrame {
         ScreenHeader(
@@ -409,6 +635,7 @@ private fun EditionScreen(
             onBack = onBack
         )
         LazyColumn(
+            state = courseListState,
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -428,11 +655,17 @@ private fun EditionScreen(
                 val completedCount = videos.count {
                     it.progressFrom(progress)?.status == ProgressStatus.COMPLETED.name
                 }
-                val inProgress = videos.firstNotNullOfOrNull { it.progressFrom(progress) }
-                    ?.takeIf { it.status == ProgressStatus.IN_PROGRESS.name }
+                val inProgress = videos.asSequence()
+                    .mapNotNull { it.progressFrom(progress) }
+                    .firstOrNull { it.status == ProgressStatus.IN_PROGRESS.name }
                 TvAction(
                     onClick = { onOpenCourse(course) },
-                    focusRequester = if (course == edition.courses.firstOrNull()) firstRequester else null,
+                    onFocused = { onCourseFocused(course) },
+                    focusRequester = when {
+                        course.id == rememberedCourseId -> rememberedRequester
+                        rememberedCourseId == null && course == edition.courses.firstOrNull() -> firstRequester
+                        else -> null
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 96.dp)
@@ -469,9 +702,11 @@ private fun CourseScreen(
     edition: Edition,
     course: Course,
     progress: List<VideoProgressEntity>,
+    catalogLocation: LastCatalogLocationEntity?,
     onBack: () -> Unit,
     onOpenVideo: (VideoLocation, Long) -> Unit,
-    onRestartVideo: (VideoLocation) -> Unit
+    onRestartVideo: (VideoLocation) -> Unit,
+    onSectionFocused: (Section) -> Unit
 ) {
     val sections = course.orderedSections()
     val locations = sections.mapNotNull { section ->
@@ -481,18 +716,24 @@ private fun CourseScreen(
             null
         }
     }
-    val firstPlayable = locations.firstOrNull { it.video.isMp4 }
+    val firstPlayable = locations.firstOrNull { PlaybackPolicy.isPlayable(it.video) }
+    val rememberedPlayable = catalogLocation?.sectionId?.let { sectionId ->
+        locations.firstOrNull { it.section.id == sectionId && PlaybackPolicy.isPlayable(it.video) }
+    }
+    val initialPlayable = rememberedPlayable ?: firstPlayable
     val firstRequester = remember { FocusRequester() }
+    val rememberedRequester = remember { FocusRequester() }
     val backRequester = remember { FocusRequester() }
     val sectionListState = rememberLazyListState()
-    LaunchedEffect(course.id, firstPlayable?.section?.id) {
+    LaunchedEffect(course.id, initialPlayable?.section?.id) {
         runCatching {
-            if (firstPlayable == null) {
+            if (initialPlayable == null) {
                 backRequester.requestFocus()
             } else {
-                val firstPlayableIndex = sections.indexOfFirst { it.id == firstPlayable.section.id }
-                sectionListState.scrollToItem(firstPlayableIndex.coerceAtLeast(0))
-                firstRequester.requestFocus()
+                val initialIndex = sections.indexOfFirst { it.id == initialPlayable.section.id }
+                sectionListState.scrollToItem(initialIndex.coerceAtLeast(0))
+                if (rememberedPlayable != null) rememberedRequester.requestFocus()
+                else firstRequester.requestFocus()
             }
         }
     }
@@ -534,6 +775,9 @@ private fun CourseScreen(
         } else {
             LazyColumn(
                 state = sectionListState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(sections, key = { it.id }) { section ->
@@ -583,6 +827,7 @@ private fun CourseScreen(
                         location != null -> {
                             val itemProgress = location.video.progressFrom(progress)
                             val isYouTube = location.video.isYouTube
+                            val isYouTubeBlocked = isYouTube && !PlaybackPolicy.youtubeEnabled
                             TvPanel(modifier = Modifier.fillMaxWidth()) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Column(modifier = Modifier.weight(1f)) {
@@ -596,15 +841,15 @@ private fun CourseScreen(
                                             )
                                         }
                                         Text(
-                                            if (isYouTube) "YouTube・待 Go/No-Go" else progressLabel(itemProgress),
+                                            if (isYouTubeBlocked) "YouTube・待 Go/No-Go" else progressLabel(itemProgress),
                                             style = MaterialTheme.typography.body2,
-                                            color = if (isYouTube) MaterialTheme.colors.secondary else MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
+                                            color = if (isYouTubeBlocked) MaterialTheme.colors.secondary else MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
                                             modifier = Modifier.padding(top = 7.dp)
                                         )
                                     }
-                                    if (isYouTube) {
+                                    if (isYouTubeBlocked) {
                                         Text(
-                                            "v${BuildConfig.VERSION_NAME} 尚未啟用",
+                                            "目前版本尚未啟用 YouTube",
                                             style = MaterialTheme.typography.body2,
                                             color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f)
                                         )
@@ -616,7 +861,12 @@ private fun CourseScreen(
                                         }
                                         TvAction(
                                             onClick = { onOpenVideo(location, start) },
-                                            focusRequester = if (location == firstPlayable) firstRequester else null,
+                                            onFocused = { onSectionFocused(section) },
+                                            focusRequester = when {
+                                                location == rememberedPlayable -> rememberedRequester
+                                                rememberedPlayable == null && location == firstPlayable -> firstRequester
+                                                else -> null
+                                            },
                                             modifier = Modifier.width(190.dp)
                                         ) {
                                             Text(

@@ -20,16 +20,21 @@ class CatalogValidatorTest {
         val catalog = Catalog(
             schemaVersion = 2,
             contentVersion = "test",
+            updatedAt = "2026-01-01T00:00:00Z",
             editions = listOf(
                 Edition(
                     id = "edition",
+                    name = "測試版",
                     courses = listOf(
                         Course(
                             id = "course",
+                            title = "測試課",
                             sections = listOf(
                                 Section(
                                     id = "section",
+                                    order = 1,
                                     type = "video",
+                                    title = "測試影片",
                                     video = VideoItem(
                                         id = "video",
                                         revision = 1,
@@ -51,11 +56,14 @@ class CatalogValidatorTest {
     fun headingsNotesAndAttachmentsAreValidAndCounted() {
         val course = Course(
             id = "course",
+            title = "測試課",
             sections = listOf(
-                Section(id = "heading", type = "heading", title = "第一部分"),
+                Section(id = "heading", order = 1, type = "heading", title = "第一部分"),
                 Section(
                     id = "video-section",
+                    order = 2,
                     type = "video",
+                    title = "測試影片",
                     video = VideoItem(
                         id = "video",
                         revision = 1,
@@ -63,10 +71,12 @@ class CatalogValidatorTest {
                         url = "https://example.com/video.mp4"
                     )
                 ),
-                Section(id = "note", type = "note", description = "更正說明"),
+                Section(id = "note", order = 3, type = "note", title = "更正", description = "更正說明"),
                 Section(
                     id = "attachment-section",
+                    order = 4,
                     type = "attachment",
+                    title = "課後講義",
                     attachment = Attachment(
                         id = "attachment",
                         kind = "pdf",
@@ -78,7 +88,8 @@ class CatalogValidatorTest {
         val catalog = Catalog(
             schemaVersion = 2,
             contentVersion = "test",
-            editions = listOf(Edition(id = "edition", courses = listOf(course)))
+            updatedAt = "2026-01-01T00:00:00Z",
+            editions = listOf(Edition(id = "edition", name = "測試版", courses = listOf(course)))
         )
 
         assertTrue(CatalogValidator.errors(catalog).isEmpty())
@@ -92,6 +103,7 @@ class CatalogValidatorTest {
         val catalog = Catalog(
             schemaVersion = 2,
             contentVersion = "test",
+            updatedAt = "2026-01-01T00:00:00Z",
             editions = listOf(
                 Edition(id = "same", courses = listOf(Course(id = "same")))
             )

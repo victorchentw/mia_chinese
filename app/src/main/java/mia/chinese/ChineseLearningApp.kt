@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.room.Room
 import mia.chinese.data.CatalogRepository
 import mia.chinese.data.ChineseDatabase
+import mia.chinese.data.CHINESE_DB_MIGRATION_1_2
 import mia.chinese.data.ProgressRepository
 
 class ChineseLearningApp : Application() {
@@ -19,7 +20,9 @@ class ChineseLearningApp : Application() {
             this,
             ChineseDatabase::class.java,
             "mia_chinese.db"
-        ).build()
+        )
+            .addMigrations(CHINESE_DB_MIGRATION_1_2)
+            .build()
         progressRepository = ProgressRepository(database)
     }
 }

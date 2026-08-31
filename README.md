@@ -1,6 +1,6 @@
 # Mia Chinese TV
 
-Android TV 國文影片課學習 App，版本 `v0.1.3`。
+Android TV 國文影片課學習 App，版本 `v0.1.11`。
 
 ## Pi agent mandatory workflow
 
@@ -19,7 +19,7 @@ Android TV 國文影片課學習 App，版本 `v0.1.3`。
 
 若只需要檢查、不應產生 repository 修改，必須明確說明，不要偷偷修改版本。
 
-## Current v0.1.3 scope
+## Current v0.1.11 scope
 
 - Android TV / Google TV，min SDK 28
 - 內建 `app/src/main/assets/catalog/lessons.json` catalog baseline（Notion 115 上學期國七公開頁快照）
@@ -27,7 +27,7 @@ Android TV 國文影片課學習 App，版本 `v0.1.3`。
 - 出版社、課程、影片段落、文字說明與附件瀏覽
 - MP4-first Media3 播放器
 - Room 保存每支影片播放進度與首頁繼續播放指標
-- YouTube 內容先顯示未啟用狀態，待 Phase 0B Go/No-Go 後再整合
+- YouTube IFrame 播放器僅供 debug spike；release 由 Go/No-Go gate 維持 MP4-only
 
 目前 asset catalog 已替換為 Notion 公開課程資料；有效課程數為翰林 18、康軒 19、南一 18。課程卡片會分別顯示影片、文字說明與附件數量。可用下列工具重新產生 catalog：
 
@@ -36,7 +36,28 @@ python3 tools/notion_import/import_public_catalog.py \
   --output app/src/main/assets/catalog/lessons.json
 ```
 
-Notion 上傳影片／附件仍需後續搬移至穩定 CDN；YouTube 內容維持 Phase 0B Go/No-Go 限制。
+Notion 上傳影片／附件仍需後續搬移至穩定 CDN；YouTube 內容維持 Phase 0B Go/No-Go 限制。Phase 0B 測試結果記錄於 [`YOUTUBE_GO_NO_GO.md`](YOUTUBE_GO_NO_GO.md)。
+
+驗證已產生的 catalog（不會對媒體發出網路請求）：
+
+```bash
+python3 tools/validate_catalog/validate_catalog.py \
+  app/src/main/assets/catalog/lessons.json --json
+python3 -m unittest tools.validate_catalog.test_validator
+```
+
+App 端的 `CatalogRepository.sync()` 只接受 HTTPS、可信 SHA-256、合法 schema，
+並以 ETag、暫存檔與 atomic replace 保留 last-known-good catalog；MVP 啟動仍只依賴
+APK／本機 baseline。若要在受控環境啟用同步，請由 CI／本機 secret-free 設定注入 endpoint
+與 checksum（不把 signed URL 或 secret 寫進 repo）：
+
+```bash
+MIA_CATALOG_ENDPOINT='https://cdn.example.invalid/catalog/lessons.json' \
+MIA_CATALOG_SHA256='<64 位 hex checksum>' \
+./gradlew assembleRelease
+```
+
+未提供兩者時，設定頁的手動同步會清楚顯示尚未設定，且不影響離線 baseline。
 
 ## Build
 

@@ -21,6 +21,17 @@ val signingAlias = providers.gradleProperty("miaSigningAlias")
     .get()
 val signingFile = signingStore?.let { File(it) }
 val hasWikiSigning = signingFile?.isFile == true && !signingPassword.isNullOrBlank()
+val catalogEndpoint = providers.gradleProperty("miaCatalogEndpoint")
+    .orElse(providers.environmentVariable("MIA_CATALOG_ENDPOINT"))
+    .orElse("")
+    .get()
+val catalogSha256 = providers.gradleProperty("miaCatalogSha256")
+    .orElse(providers.environmentVariable("MIA_CATALOG_SHA256"))
+    .orElse("")
+    .get()
+
+fun buildConfigString(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 android {
     namespace = "mia.chinese"
@@ -30,8 +41,10 @@ android {
         applicationId = "mia.chinese"
         minSdk = 28
         targetSdk = 34
-        versionCode = 4
-        versionName = "0.1.3"
+        versionCode = 12
+        versionName = "0.1.11"
+        buildConfigField("String", "CATALOG_ENDPOINT", buildConfigString(catalogEndpoint))
+        buildConfigField("String", "CATALOG_SHA256", buildConfigString(catalogSha256))
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -107,6 +120,7 @@ dependencies {
 
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
+    implementation("androidx.webkit:webkit:1.10.0")
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
@@ -118,6 +132,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:core:1.5.0")
+    androidTestImplementation("androidx.test:rules:1.5.0")
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.02"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
