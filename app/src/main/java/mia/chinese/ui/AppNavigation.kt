@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
@@ -760,9 +761,6 @@ private fun CourseScreen(
     val scope = rememberCoroutineScope()
     var externalMessage by remember(course.id) { mutableStateOf<String?>(null) }
     val sections = course.orderedSections()
-    val attachmentLocations = sections.mapNotNull { section ->
-        section.attachment?.let { AttachmentLocation(edition, course, section, it) }
-    }
     val locations = sections.mapNotNull { section ->
         if (section.type.equals("video", ignoreCase = true)) {
             section.video?.let { VideoLocation(edition, course, section, it) }
@@ -815,41 +813,13 @@ private fun CourseScreen(
             "${course.videoSections().size} 部影片・${course.noteSections().size} 則說明・${course.attachmentSections().size} 份附件",
             style = MaterialTheme.typography.body2,
             color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
-            modifier = Modifier.padding(top = 18.dp)
+            modifier = Modifier.padding(top = 10.dp)
         )
         Text(
             "影片與教材",
             style = MaterialTheme.typography.h5,
-            modifier = Modifier.padding(top = 18.dp, bottom = 12.dp)
+            modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)
         )
-        if (attachmentLocations.isNotEmpty()) {
-            Text(
-                "講義附件捷徑",
-                style = MaterialTheme.typography.h6,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                attachmentLocations.forEach { attachmentLocation ->
-                    TvAction(
-                        onClick = { onOpenAttachment(attachmentLocation) },
-                        onFocused = { onSectionFocused(attachmentLocation.section) },
-                        modifier = Modifier.width(330.dp).heightIn(min = 84.dp)
-                    ) {
-                        Text(
-                            attachmentLocation.attachment.title,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            if (attachmentLocation.attachment.isPdf()) "PDF／手機 QR code" else "附件／手機 QR code",
-                            style = MaterialTheme.typography.body2,
-                            color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
-                            modifier = Modifier.padding(top = 5.dp)
-                        )
-                    }
-                }
-            }
-        }
         externalMessage?.let { message ->
             TvPanel(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                 Text(message, style = MaterialTheme.typography.body2, color = MaterialTheme.colors.secondary)
@@ -866,7 +836,7 @@ private fun CourseScreen(
                     .fillMaxWidth()
                     .weight(1f)
                     .focusGroup(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(sections, key = { it.id }) { section ->
                     val location = section.video?.let { VideoLocation(edition, course, section, it) }
@@ -1034,7 +1004,10 @@ internal fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colors.background)
-                .padding(horizontal = 72.dp, vertical = 48.dp),
+                .padding(
+                    horizontal = if (LocalConfiguration.current.screenHeightDp <= 600) 36.dp else 72.dp,
+                    vertical = if (LocalConfiguration.current.screenHeightDp <= 600) 24.dp else 48.dp
+                ),
             content = content
         )
     }
@@ -1051,11 +1024,13 @@ internal fun ScreenHeader(
         TvAction(
             onClick = onBack,
             focusRequester = backFocusRequester,
-            modifier = Modifier.width(180.dp)
+            modifier = Modifier.width(
+                if (LocalConfiguration.current.screenHeightDp <= 600) 150.dp else 180.dp
+            )
         ) {
             Text("← 返回")
         }
-        Spacer(Modifier.size(24.dp))
+        Spacer(Modifier.size(if (LocalConfiguration.current.screenHeightDp <= 600) 16.dp else 24.dp))
         ScreenTitle(title = title, subtitle = subtitle)
     }
 }

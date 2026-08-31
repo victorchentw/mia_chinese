@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.media3.common.AudioAttributes
@@ -500,11 +501,15 @@ internal fun PlayerOverlay(
     onBack: () -> Unit,
     onOpenExternal: (() -> Unit)? = null
 ) {
+    val compact = LocalConfiguration.current.screenHeightDp <= 600
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f))
-            .padding(horizontal = 64.dp, vertical = 42.dp)
+            .padding(
+                horizontal = if (compact) 36.dp else 64.dp,
+                vertical = if (compact) 24.dp else 42.dp
+            )
     ) {
         seekFeedback?.let {
             Text(
@@ -539,30 +544,48 @@ internal fun PlayerOverlay(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(top = if (compact) 10.dp else 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)
             ) {
-                TvAction(onClick = onSeekBack, modifier = Modifier.width(150.dp)) {
+                TvAction(
+                    onClick = onSeekBack,
+                    modifier = Modifier.width(if (compact) 120.dp else 150.dp)
+                ) {
                     Text("↶ 5 秒")
                 }
-                TvAction(onClick = onToggle, modifier = Modifier.width(190.dp)) {
+                TvAction(
+                    onClick = onToggle,
+                    modifier = Modifier.width(if (compact) 150.dp else 190.dp)
+                ) {
                     Text(if (isPlaying) "❚❚ 暫停" else if (isCompleted) "▶ 重新觀看" else "▶ 播放")
                 }
-                TvAction(onClick = onSeekForward, modifier = Modifier.width(150.dp)) {
+                TvAction(
+                    onClick = onSeekForward,
+                    modifier = Modifier.width(if (compact) 120.dp else 150.dp)
+                ) {
                     Text("5 秒 ↷")
                 }
                 if (errorMessage != null) {
-                    TvAction(onClick = onRetry, modifier = Modifier.width(170.dp)) {
+                    TvAction(
+                        onClick = onRetry,
+                        modifier = Modifier.width(if (compact) 140.dp else 170.dp)
+                    ) {
                         Text("重新嘗試")
                     }
                 }
                 onOpenExternal?.let { openExternal ->
-                    TvAction(onClick = openExternal, modifier = Modifier.width(220.dp)) {
+                    TvAction(
+                        onClick = openExternal,
+                        modifier = Modifier.width(if (compact) 170.dp else 220.dp)
+                    ) {
                         Text("外部播放")
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                TvAction(onClick = onBack, modifier = Modifier.width(160.dp)) {
+                TvAction(
+                    onClick = onBack,
+                    modifier = Modifier.width(if (compact) 120.dp else 160.dp)
+                ) {
                     Text("返回課程")
                 }
             }

@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -37,8 +38,13 @@ fun TvAction(
     content: @Composable ColumnScope.() -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(14.dp)
+    val compact = LocalConfiguration.current.screenHeightDp <= 600
+    val shape = RoundedCornerShape(if (compact) 10.dp else 14.dp)
     val focusModifier = focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier
+    val contentPadding = PaddingValues(
+        horizontal = if (compact) 16.dp else 24.dp,
+        vertical = if (compact) 10.dp else 18.dp
+    )
     Box(
         modifier = modifier
             .then(focusModifier)
@@ -48,7 +54,7 @@ fun TvAction(
             }
             .clip(shape)
             .border(
-                width = if (focused) 3.dp else 1.dp,
+                width = if (focused) 2.dp else 1.dp,
                 color = if (focused) {
                     MaterialTheme.colors.primary
                 } else {
@@ -65,7 +71,7 @@ fun TvAction(
             )
             .clickable(onClick = onClick)
             .focusable()
-            .padding(PaddingValues(horizontal = 24.dp, vertical = 18.dp))
+            .padding(contentPadding)
     ) {
         CompositionLocalProvider(LocalContentColor provides MaterialTheme.colors.onSurface) {
             androidx.compose.foundation.layout.Column(content = content)
@@ -78,14 +84,15 @@ fun TvPanel(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val compact = LocalConfiguration.current.screenHeightDp <= 600
     Surface(
         modifier = modifier,
         color = MaterialTheme.colors.surface,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(if (compact) 12.dp else 16.dp),
         elevation = 2.dp
     ) {
         androidx.compose.foundation.layout.Column(
-            modifier = Modifier.padding(24.dp),
+            modifier = Modifier.padding(if (compact) 16.dp else 24.dp),
             content = content
         )
     }

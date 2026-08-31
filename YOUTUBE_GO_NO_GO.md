@@ -22,12 +22,15 @@ system YouTube／browser handler.
 | IFrame API / duration | `onReady` arrived; duration `1:44:32` was reported |
 | Native D-pad seek | Left/Right moved the native cache by 5 seconds |
 | Native overlay / Back path | Present; error state has retry and return actions |
-| Play / pause | Manual native Play advanced the position to `00:33` on this run, but the IFrame still logged the old-WebView `queueMicrotask` issue and the video surface stayed black; pause／resume needs real-device confirmation |
+| Play / pause | Manual native Play advanced the position to `00:33` on this run, but the IFrame still logged the old-WebView `queueMicrotask` issue and the video surface stayed black／audio-only; pause／resume needs real-device confirmation |
 | WebView lifecycle | No app fatal exception; decoder was released when the player left the route |
 | External player fallback | Implemented with SmartTube stable／beta package detection and generic `ACTION_VIEW`; SmartTube was not installed on this emulator, so real deep-link／Back behavior remains unverified |
 
 The emulator also logged that this old Chromium does not provide newer Web
-APIs used by the current YouTube bootstrap. The manual play progress is useful
+APIs used by the current YouTube bootstrap. The observed audio-only symptom
+means audio/progress can continue while the WebView video surface fails to
+render; this points to a provider／decoder／surface-composition compatibility
+problem rather than a missing App overlay. The manual play progress is useful
 for the spike, but the black surface and old-WebView errors are sufficient to
 reject it as a universal production guarantee; it is not evidence that every
 target TV will fail. Android TV may receive a newer Android System WebView／Chrome from

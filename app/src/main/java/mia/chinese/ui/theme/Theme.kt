@@ -7,6 +7,7 @@ import androidx.compose.material.darkColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
@@ -32,11 +33,25 @@ private val MiaTypography = BaseTypography.copy(
     button = BaseTypography.button.copy(fontSize = 21.sp, fontWeight = FontWeight.Bold)
 )
 
+private val MiaCompactTypography = BaseTypography.copy(
+    h4 = BaseTypography.h4.copy(fontSize = 28.sp, fontWeight = FontWeight.Bold),
+    h5 = BaseTypography.h5.copy(fontSize = 23.sp, fontWeight = FontWeight.Bold),
+    h6 = BaseTypography.h6.copy(fontSize = 19.sp, fontWeight = FontWeight.Bold),
+    body1 = BaseTypography.body1.copy(fontSize = 18.sp, lineHeight = 24.sp),
+    body2 = BaseTypography.body2.copy(fontSize = 15.sp, lineHeight = 21.sp),
+    button = BaseTypography.button.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold)
+)
+
 @Composable
 fun MiaChineseTheme(content: @Composable () -> Unit) {
+    val typography = if (LocalConfiguration.current.screenHeightDp <= 600) {
+        MiaCompactTypography
+    } else {
+        MiaTypography
+    }
     MaterialTheme(
         colors = MiaColors,
-        typography = MiaTypography
+        typography = typography
     ) {
         CompositionLocalProvider(LocalContentColor provides MiaColors.onBackground) {
             content()
