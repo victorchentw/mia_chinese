@@ -1,6 +1,6 @@
 # Mia Chinese TV
 
-Android TV 國文影片課學習 App，版本 `v0.1.15`。
+Android TV 國文影片課學習 App，版本 `v0.1.16`。
 
 ## Pi agent mandatory workflow
 
@@ -19,7 +19,7 @@ Android TV 國文影片課學習 App，版本 `v0.1.15`。
 
 若只需要檢查、不應產生 repository 修改，必須明確說明，不要偷偷修改版本。
 
-## Current v0.1.15 scope
+## Current v0.1.16 scope
 
 - Android TV / Google TV，min SDK 28
 - TV launcher icon：沿用 Mia bird 視覺，文字改為「米亞的國文」

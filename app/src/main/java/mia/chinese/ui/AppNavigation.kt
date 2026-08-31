@@ -489,8 +489,10 @@ private fun HomeScreen(
     val firstEditionRequester = remember { FocusRequester() }
     val rememberedEditionRequester = remember { FocusRequester() }
     val rememberedEditionId = catalogLocation?.editionId?.takeIf { id -> catalog.editions.any { it.id == id } }
+    var initialFocusRequested by remember(catalog.contentVersion) { mutableStateOf(false) }
 
-    LaunchedEffect(resumeLocation?.video?.id, rememberedEditionId, catalog.editions.firstOrNull()?.id) {
+    LaunchedEffect(resumeLocation?.video?.id, resumeResolution.fallback?.video?.id, rememberedEditionId, catalog.editions.firstOrNull()?.id) {
+        if (initialFocusRequested) return@LaunchedEffect
         runCatching {
             when {
                 resumeLocation != null -> continueRequester.requestFocus()
@@ -498,6 +500,9 @@ private fun HomeScreen(
                 rememberedEditionId != null -> rememberedEditionRequester.requestFocus()
                 else -> firstEditionRequester.requestFocus()
             }
+            // Catalog-location writes happen when an edition receives focus. Do not
+            // let that persistence update re-run this initial focus decision.
+            initialFocusRequested = true
         }
     }
 
