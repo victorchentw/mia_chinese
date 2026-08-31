@@ -45,6 +45,7 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import mia.chinese.BuildConfig
 import mia.chinese.data.ProgressRepository
 import mia.chinese.data.ProgressStatus
 import mia.chinese.model.VideoLocation
@@ -87,7 +88,7 @@ private fun UnsupportedPlayerScreen(location: VideoLocation, onBack: () -> Unit)
         TvPanel(modifier = Modifier.width(720.dp)) {
             Text("影片目前無法播放", style = MaterialTheme.typography.h5)
             Text(
-                "${location.section.title} 使用 YouTube 來源；v0.1.0 尚未通過 Go/No-Go，因此暫不啟用。",
+                "${location.section.title} 使用 YouTube 來源；v${BuildConfig.VERSION_NAME} 尚未通過 Go/No-Go，因此暫不啟用。",
                 style = MaterialTheme.typography.body1,
                 modifier = Modifier.padding(top = 12.dp)
             )

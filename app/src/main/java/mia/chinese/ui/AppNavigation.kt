@@ -38,6 +38,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavHostController
+import mia.chinese.BuildConfig
 import mia.chinese.ChineseLearningApp
 import mia.chinese.CatalogLoadState
 import mia.chinese.MainViewModel
@@ -283,7 +284,7 @@ private fun HomeScreen(
             Text("Mia 國文影片課", style = MaterialTheme.typography.h4)
             Spacer(Modifier.weight(1f))
             Text(
-                text = "v0.1.0",
+                text = "v${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.body2,
                 color = MaterialTheme.colors.onBackground.copy(alpha = 0.65f)
             )
@@ -524,7 +525,7 @@ private fun CourseScreen(
                             }
                             if (isYouTube) {
                                 Text(
-                                    "v0.1.0 尚未啟用",
+                                    "v${BuildConfig.VERSION_NAME} 尚未啟用",
                                     style = MaterialTheme.typography.body2,
                                     color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f)
                                 )

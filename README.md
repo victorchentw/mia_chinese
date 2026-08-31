@@ -1,6 +1,6 @@
 # Mia Chinese TV
 
-Android TV 國文影片課學習 App，版本 `v0.1.1`。
+Android TV 國文影片課學習 App，版本 `v0.1.2`。
 
 ## Pi agent mandatory workflow
 
@@ -19,7 +19,7 @@ Android TV 國文影片課學習 App，版本 `v0.1.1`。
 
 若只需要檢查、不應產生 repository 修改，必須明確說明，不要偷偷修改版本。
 
-## Current v0.1.1 scope
+## Current v0.1.2 scope
 
 - Android TV / Google TV，min SDK 28
 - 內建 `app/src/main/assets/catalog/lessons.json` catalog baseline
