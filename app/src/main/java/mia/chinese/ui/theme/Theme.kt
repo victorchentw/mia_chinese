@@ -1,9 +1,11 @@
 package mia.chinese.ui.theme
 
+import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Typography
 import androidx.compose.material.darkColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
@@ -34,7 +36,10 @@ private val MiaTypography = BaseTypography.copy(
 fun MiaChineseTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colors = MiaColors,
-        typography = MiaTypography,
-        content = content
-    )
+        typography = MiaTypography
+    ) {
+        CompositionLocalProvider(LocalContentColor provides MiaColors.onBackground) {
+            content()
+        }
+    }
 }

@@ -244,7 +244,7 @@ lastTextbookId / lastTextbookLessons
 
 ### 4.4 版本／課程清單頁
 
-- 垂直卡片清單，每張顯示課次、課名、影片數、完成／進行中狀態。
+- 垂直卡片清單，每張顯示課次、課名、影片數、文字說明數、附件數與完成／進行中狀態。
 - 最近閱讀的課程可自動展開，但不得在沒有紀錄時硬套預設 index。
 - 影片進度可用課程卡片右側摘要顯示，例如 `已看 1/2` 或 `進行中 12:34`。
 - 按 Back 回首頁，保留上次焦點課程。
@@ -751,6 +751,7 @@ Notion 公開頁 / Notion API
 - `header`、`sub_header`、`text`、`video`、`pdf`、`file` 依原始順序轉成 section。
 - 先為翰林／康軒／南一產生獨立 JSON，再合併發布，方便人工校對。
 - 匯入工具要有 `--dry-run` 與 deterministic output，讓相同輸入不產生無意義 diff。
+- 本 repository 的 `tools/notion_import/import_public_catalog.py` 已可讀取公開頁、排除 `page_sort` 中無內容的刪除列，並產生目前 snapshot：翰林 18 課／49 部影片、康軒 19 課／60 部影片、南一 18 課／72 部影片；文字說明與附件另行計數。
 
 ### 10.5 遠端 catalog 更新安全機制
 

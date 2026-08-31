@@ -15,6 +15,7 @@ data class Edition(
     val name: String = "",
     val grade: String = "",
     val semester: String = "",
+    val instructions: List<String> = emptyList(),
     val courses: List<Course> = emptyList()
 )
 
@@ -31,7 +32,15 @@ data class Section(
     val type: String = "",
     val title: String = "",
     val description: String? = null,
-    val video: VideoItem? = null
+    val video: VideoItem? = null,
+    val attachment: Attachment? = null
+)
+
+data class Attachment(
+    val id: String = "",
+    val kind: String = "",
+    val title: String = "",
+    val url: String? = null
 )
 
 data class VideoItem(
@@ -58,7 +67,7 @@ data class VideoLocation(
 
 fun Catalog.allVideoLocations(): List<VideoLocation> = editions.flatMap { edition ->
     edition.courses.flatMap { course ->
-        course.sections.mapNotNull { section ->
+        course.videoSections().mapNotNull { section ->
             section.video?.let { video -> VideoLocation(edition, course, section, video) }
         }
     }
@@ -69,6 +78,13 @@ fun Catalog.findVideo(videoId: String): VideoLocation? =
 
 fun Edition.findCourse(courseId: String): Course? = courses.firstOrNull { it.id == courseId }
 
+fun Course.orderedSections(): List<Section> = sections.sortedBy { it.order }
+
 fun Course.videoSections(): List<Section> =
-    sections.filter { it.type.equals("video", ignoreCase = true) && it.video != null }
-        .sortedBy { it.order }
+    orderedSections().filter { it.type.equals("video", ignoreCase = true) && it.video != null }
+
+fun Course.noteSections(): List<Section> =
+    orderedSections().filter { it.type.equals("note", ignoreCase = true) }
+
+fun Course.attachmentSections(): List<Section> =
+    orderedSections().filter { it.type.equals("attachment", ignoreCase = true) }

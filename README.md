@@ -1,6 +1,6 @@
 # Mia Chinese TV
 
-Android TV 國文影片課學習 App，版本 `v0.1.2`。
+Android TV 國文影片課學習 App，版本 `v0.1.3`。
 
 ## Pi agent mandatory workflow
 
@@ -19,17 +19,24 @@ Android TV 國文影片課學習 App，版本 `v0.1.2`。
 
 若只需要檢查、不應產生 repository 修改，必須明確說明，不要偷偷修改版本。
 
-## Current v0.1.2 scope
+## Current v0.1.3 scope
 
 - Android TV / Google TV，min SDK 28
-- 內建 `app/src/main/assets/catalog/lessons.json` catalog baseline
-- D-pad / OK / Back 導覽
-- 出版社、課程與影片段落瀏覽
+- 內建 `app/src/main/assets/catalog/lessons.json` catalog baseline（Notion 115 上學期國七公開頁快照）
+- D-pad / OK / Back 導覽，並使用高對比焦點／文字色彩
+- 出版社、課程、影片段落、文字說明與附件瀏覽
 - MP4-first Media3 播放器
 - Room 保存每支影片播放進度與首頁繼續播放指標
 - YouTube 內容先顯示未啟用狀態，待 Phase 0B Go/No-Go 後再整合
 
-目前 asset catalog 是可播放的 demo 資料；Notion 匯入工具尚未加入。正式內容應由 schema v2 匯入結果取代該檔案。
+目前 asset catalog 已替換為 Notion 公開課程資料；有效課程數為翰林 18、康軒 19、南一 18。課程卡片會分別顯示影片、文字說明與附件數量。可用下列工具重新產生 catalog：
+
+```bash
+python3 tools/notion_import/import_public_catalog.py \
+  --output app/src/main/assets/catalog/lessons.json
+```
+
+Notion 上傳影片／附件仍需後續搬移至穩定 CDN；YouTube 內容維持 Phase 0B Go/No-Go 限制。
 
 ## Build
 

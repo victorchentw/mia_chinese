@@ -16,9 +16,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -49,10 +52,12 @@ import mia.chinese.data.VideoProgressEntity
 import mia.chinese.model.Catalog
 import mia.chinese.model.Course
 import mia.chinese.model.Edition
-import mia.chinese.model.Section
 import mia.chinese.model.VideoLocation
+import mia.chinese.model.attachmentSections
 import mia.chinese.model.findCourse
 import mia.chinese.model.findVideo
+import mia.chinese.model.noteSections
+import mia.chinese.model.orderedSections
 import mia.chinese.model.videoSections
 import mia.chinese.ui.theme.MiaChineseTheme
 
@@ -202,7 +207,9 @@ private fun LoadingScreen() {
             .background(MaterialTheme.colors.background),
         contentAlignment = Alignment.Center
     ) {
-        Text("正在載入課程資料…", style = MaterialTheme.typography.h5)
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colors.onBackground) {
+            Text("正在載入課程資料…", style = MaterialTheme.typography.h5)
+        }
     }
 }
 
@@ -401,14 +408,23 @@ private fun EditionScreen(
             subtitle = "${edition.grade}・${edition.semester}",
             onBack = onBack
         )
-        Text(
-            "課程清單",
-            style = MaterialTheme.typography.h5,
-            modifier = Modifier.padding(top = 30.dp, bottom = 12.dp)
-        )
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item(key = "course-heading") {
+                Text(
+                    "課程清單（${edition.courses.size} 課）",
+                    style = MaterialTheme.typography.h5,
+                    modifier = Modifier.padding(top = 30.dp, bottom = 12.dp)
+                )
+            }
             items(edition.courses, key = { it.id }) { course ->
                 val videos = course.videoSections().mapNotNull { it.video }
+                val noteCount = course.noteSections().size
+                val attachmentCount = course.attachmentSections().size
                 val completedCount = videos.count {
                     it.progressFrom(progress)?.status == ProgressStatus.COMPLETED.name
                 }
@@ -425,7 +441,7 @@ private fun EditionScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(course.title, style = MaterialTheme.typography.h6)
                             Text(
-                                "${videos.size} 部影片",
+                                "${videos.size} 部影片・${noteCount} 則說明・${attachmentCount} 份附件",
                                 style = MaterialTheme.typography.body2,
                                 color = MaterialTheme.colors.onBackground.copy(alpha = 0.7f),
                                 modifier = Modifier.padding(top = 5.dp)
@@ -457,17 +473,27 @@ private fun CourseScreen(
     onOpenVideo: (VideoLocation, Long) -> Unit,
     onRestartVideo: (VideoLocation) -> Unit
 ) {
-    val locations = course.sections
-        .sortedBy { it.order }
-        .mapNotNull { section ->
+    val sections = course.orderedSections()
+    val locations = sections.mapNotNull { section ->
+        if (section.type.equals("video", ignoreCase = true)) {
             section.video?.let { VideoLocation(edition, course, section, it) }
+        } else {
+            null
         }
+    }
     val firstPlayable = locations.firstOrNull { it.video.isMp4 }
     val firstRequester = remember { FocusRequester() }
     val backRequester = remember { FocusRequester() }
-    LaunchedEffect(course.id) {
+    val sectionListState = rememberLazyListState()
+    LaunchedEffect(course.id, firstPlayable?.section?.id) {
         runCatching {
-            if (firstPlayable == null) backRequester.requestFocus() else firstRequester.requestFocus()
+            if (firstPlayable == null) {
+                backRequester.requestFocus()
+            } else {
+                val firstPlayableIndex = sections.indexOfFirst { it.id == firstPlayable.section.id }
+                sectionListState.scrollToItem(firstPlayableIndex.coerceAtLeast(0))
+                firstRequester.requestFocus()
+            }
         }
     }
 
@@ -491,71 +517,126 @@ private fun CourseScreen(
             }
         }
         Text(
+            "${course.videoSections().size} 部影片・${course.noteSections().size} 則說明・${course.attachmentSections().size} 份附件",
+            style = MaterialTheme.typography.body2,
+            color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
+            modifier = Modifier.padding(top = 18.dp)
+        )
+        Text(
             "影片與教材",
             style = MaterialTheme.typography.h5,
-            modifier = Modifier.padding(top = 26.dp, bottom = 12.dp)
+            modifier = Modifier.padding(top = 18.dp, bottom = 12.dp)
         )
-        if (locations.isEmpty()) {
+        if (sections.isEmpty()) {
             TvPanel(modifier = Modifier.fillMaxWidth()) {
-                Text("目前沒有可播放的影片。")
+                Text("目前沒有課程內容。")
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(locations, key = { it.section.id }) { location ->
-                    val itemProgress = location.video.progressFrom(progress)
-                    val isYouTube = location.video.isYouTube
-                    TvPanel(modifier = Modifier.fillMaxWidth()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(location.section.title, style = MaterialTheme.typography.h6)
-                                location.section.description?.let {
+            LazyColumn(
+                state = sectionListState,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(sections, key = { it.id }) { section ->
+                    val location = section.video?.let { VideoLocation(edition, course, section, it) }
+                    when {
+                        section.type.equals("heading", ignoreCase = true) -> {
+                            Text(
+                                section.title,
+                                style = MaterialTheme.typography.h6,
+                                color = MaterialTheme.colors.secondary,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                            )
+                        }
+                        section.type.equals("note", ignoreCase = true) -> {
+                            TvPanel(modifier = Modifier.fillMaxWidth()) {
+                                Text(section.title, style = MaterialTheme.typography.h6)
+                                section.description?.let {
                                     Text(
                                         it,
-                                        style = MaterialTheme.typography.body2,
-                                        color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
-                                        modifier = Modifier.padding(top = 5.dp)
+                                        style = MaterialTheme.typography.body1,
+                                        modifier = Modifier.padding(top = 8.dp)
                                     )
                                 }
+                            }
+                        }
+                        section.type.equals("attachment", ignoreCase = true) -> {
+                            TvPanel(modifier = Modifier.fillMaxWidth()) {
+                                Text(section.title, style = MaterialTheme.typography.h6)
                                 Text(
-                                    if (isYouTube) "YouTube・待 Go/No-Go" else progressLabel(itemProgress),
+                                    if (section.attachment?.kind.equals("pdf", ignoreCase = true)) {
+                                        "PDF 講義"
+                                    } else {
+                                        "課後附件"
+                                    },
                                     style = MaterialTheme.typography.body2,
-                                    color = if (isYouTube) MaterialTheme.colors.secondary else MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
-                                    modifier = Modifier.padding(top = 7.dp)
+                                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
+                                    modifier = Modifier.padding(top = 6.dp)
+                                )
+                                Text(
+                                    "目前顯示附件資訊，電視閱讀器尚未啟用。",
+                                    style = MaterialTheme.typography.body2,
+                                    color = MaterialTheme.colors.secondary,
+                                    modifier = Modifier.padding(top = 6.dp)
                                 )
                             }
-                            if (isYouTube) {
-                                Text(
-                                    "v${BuildConfig.VERSION_NAME} 尚未啟用",
-                                    style = MaterialTheme.typography.body2,
-                                    color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f)
-                                )
-                            } else {
-                                val start = if (itemProgress?.status == ProgressStatus.COMPLETED.name) {
-                                    0L
-                                } else {
-                                    itemProgress?.positionMs ?: 0L
-                                }
-                                TvAction(
-                                    onClick = { onOpenVideo(location, start) },
-                                    focusRequester = if (location == firstPlayable) firstRequester else null,
-                                    modifier = Modifier.width(190.dp)
-                                ) {
-                                    Text(
-                                        when {
-                                            itemProgress?.status == ProgressStatus.COMPLETED.name -> "重新觀看"
-                                            itemProgress != null && itemProgress.positionMs > 0L -> "繼續播放"
-                                            else -> "開始觀看"
+                        }
+                        location != null -> {
+                            val itemProgress = location.video.progressFrom(progress)
+                            val isYouTube = location.video.isYouTube
+                            TvPanel(modifier = Modifier.fillMaxWidth()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(location.section.title, style = MaterialTheme.typography.h6)
+                                        location.section.description?.let {
+                                            Text(
+                                                it,
+                                                style = MaterialTheme.typography.body2,
+                                                color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
+                                                modifier = Modifier.padding(top = 5.dp)
+                                            )
                                         }
-                                    )
-                                }
-                                if (itemProgress != null && itemProgress.positionMs > 0L) {
-                                    TvAction(
-                                        onClick = { onRestartVideo(location) },
-                                        modifier = Modifier
-                                            .padding(start = 10.dp)
-                                            .width(150.dp)
-                                    ) {
-                                        Text("重新開始")
+                                        Text(
+                                            if (isYouTube) "YouTube・待 Go/No-Go" else progressLabel(itemProgress),
+                                            style = MaterialTheme.typography.body2,
+                                            color = if (isYouTube) MaterialTheme.colors.secondary else MaterialTheme.colors.onBackground.copy(alpha = 0.72f),
+                                            modifier = Modifier.padding(top = 7.dp)
+                                        )
+                                    }
+                                    if (isYouTube) {
+                                        Text(
+                                            "v${BuildConfig.VERSION_NAME} 尚未啟用",
+                                            style = MaterialTheme.typography.body2,
+                                            color = MaterialTheme.colors.onBackground.copy(alpha = 0.6f)
+                                        )
+                                    } else {
+                                        val start = if (itemProgress?.status == ProgressStatus.COMPLETED.name) {
+                                            0L
+                                        } else {
+                                            itemProgress?.positionMs ?: 0L
+                                        }
+                                        TvAction(
+                                            onClick = { onOpenVideo(location, start) },
+                                            focusRequester = if (location == firstPlayable) firstRequester else null,
+                                            modifier = Modifier.width(190.dp)
+                                        ) {
+                                            Text(
+                                                when {
+                                                    itemProgress?.status == ProgressStatus.COMPLETED.name -> "重新觀看"
+                                                    itemProgress != null && itemProgress.positionMs > 0L -> "繼續播放"
+                                                    else -> "開始觀看"
+                                                }
+                                            )
+                                        }
+                                        if (itemProgress != null && itemProgress.positionMs > 0L) {
+                                            TvAction(
+                                                onClick = { onRestartVideo(location) },
+                                                modifier = Modifier
+                                                    .padding(start = 10.dp)
+                                                    .width(150.dp)
+                                            ) {
+                                                Text("重新開始")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -569,13 +650,15 @@ private fun CourseScreen(
 
 @Composable
 private fun ScreenFrame(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colors.background)
-            .padding(horizontal = 72.dp, vertical = 48.dp),
-        content = content
-    )
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colors.onBackground) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colors.background)
+                .padding(horizontal = 72.dp, vertical = 48.dp),
+            content = content
+        )
+    }
 }
 
 @Composable

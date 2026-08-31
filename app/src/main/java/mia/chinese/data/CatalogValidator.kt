@@ -29,16 +29,39 @@ object CatalogValidator {
                 checkId(course.id, "course")
                 course.sections.forEach { section ->
                     checkId(section.id, "section")
-                    if (section.type.equals("video", ignoreCase = true)) {
-                        val video = section.video
-                        if (video == null) {
-                            errors += "video section ${section.id} has no video"
-                        } else {
-                            validateVideo(video, errors)
-                            checkId(video.id, "video")
+                    when {
+                        section.type.equals("video", ignoreCase = true) -> {
+                            val video = section.video
+                            if (video == null) {
+                                errors += "video section ${section.id} has no video"
+                            } else {
+                                validateVideo(video, errors)
+                                checkId(video.id, "video")
+                            }
+                            if (section.attachment != null) {
+                                errors += "video section ${section.id} must not have attachment"
+                            }
                         }
-                    } else if (section.type.equals("note", ignoreCase = true) && section.video != null) {
-                        errors += "note section ${section.id} must not have video"
+                        section.type.equals("attachment", ignoreCase = true) -> {
+                            if (section.attachment == null) {
+                                errors += "attachment section ${section.id} has no attachment"
+                            } else {
+                                checkId(section.attachment.id, "attachment")
+                            }
+                            if (section.video != null) {
+                                errors += "attachment section ${section.id} must not have video"
+                            }
+                        }
+                        section.type.equals("heading", ignoreCase = true) ||
+                            section.type.equals("note", ignoreCase = true) -> {
+                            if (section.video != null) {
+                                errors += "${section.type} section ${section.id} must not have video"
+                            }
+                            if (section.attachment != null) {
+                                errors += "${section.type} section ${section.id} must not have attachment"
+                            }
+                        }
+                        else -> errors += "section ${section.id} has unsupported type=${section.type}"
                     }
                 }
             }

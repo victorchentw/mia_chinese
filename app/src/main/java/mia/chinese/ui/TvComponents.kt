@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.LocalContentColor
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,7 +26,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -44,15 +45,27 @@ fun TvAction(
             .clip(shape)
             .border(
                 width = if (focused) 3.dp else 1.dp,
-                color = if (focused) MaterialTheme.colors.primary else Color(0xFF33445D),
+                color = if (focused) {
+                    MaterialTheme.colors.primary
+                } else {
+                    MaterialTheme.colors.onSurface.copy(alpha = 0.18f)
+                },
                 shape = shape
             )
-            .background(if (focused) Color(0xFF203B52) else MaterialTheme.colors.surface)
+            .background(
+                if (focused) {
+                    MaterialTheme.colors.primary.copy(alpha = 0.18f)
+                } else {
+                    MaterialTheme.colors.surface
+                }
+            )
             .clickable(onClick = onClick)
             .focusable()
             .padding(PaddingValues(horizontal = 24.dp, vertical = 18.dp))
     ) {
-        androidx.compose.foundation.layout.Column(content = content)
+        CompositionLocalProvider(LocalContentColor provides MaterialTheme.colors.onSurface) {
+            androidx.compose.foundation.layout.Column(content = content)
+        }
     }
 }
 
