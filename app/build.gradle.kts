@@ -46,8 +46,8 @@ android {
         applicationId = "mia.chinese"
         minSdk = 28
         targetSdk = 34
-        versionCode = 19
-        versionName = "0.1.18"
+        versionCode = 20
+        versionName = "0.1.19"
         buildConfigField("String", "CATALOG_ENDPOINT", buildConfigString(catalogEndpoint))
         buildConfigField("String", "CATALOG_SHA256", buildConfigString(catalogSha256))
         buildConfigField("boolean", "YOUTUBE_WEBVIEW_ENABLED", youtubeWebViewEnabled.toString())
