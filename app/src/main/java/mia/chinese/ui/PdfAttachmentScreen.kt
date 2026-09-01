@@ -42,6 +42,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import mia.chinese.data.resolveAttachmentUrl
 import mia.chinese.model.AttachmentLocation
 import mia.chinese.model.isPdf
 
@@ -50,20 +51,53 @@ internal fun PdfAttachmentScreen(
     location: AttachmentLocation,
     onBack: () -> Unit
 ) {
-    val url = location.attachment.url?.takeIf { it.startsWith("https://") }
+    val sourceUrl = location.attachment.url
+        ?.trim()
+        ?.takeIf { it.startsWith("https://") }
+    var resolvedUrl by remember(location.attachment.id, sourceUrl) {
+        mutableStateOf<String?>(null)
+    }
+    var isResolving by remember(location.attachment.id, sourceUrl) {
+        mutableStateOf(sourceUrl != null)
+    }
+    var resolveError by remember(location.attachment.id, sourceUrl) {
+        mutableStateOf<String?>(null)
+    }
+    var resolveAttempt by remember(location.attachment.id, sourceUrl) {
+        mutableStateOf(0)
+    }
     var showWebView by remember(location.attachment.id) { mutableStateOf(false) }
 
-    if (showWebView && url != null) {
+    LaunchedEffect(location.attachment.id, sourceUrl, resolveAttempt) {
+        resolvedUrl = null
+        resolveError = null
+        if (sourceUrl == null) {
+            isResolving = false
+            return@LaunchedEffect
+        }
+
+        isResolving = true
+        val result = resolveAttachmentUrl(location.attachment)
+        resolvedUrl = result.url
+        resolveError = result.errorMessage
+        isResolving = false
+    }
+
+    val webViewUrl = resolvedUrl
+    if (showWebView && webViewUrl != null) {
         BackHandler(enabled = true) { showWebView = false }
         PdfWebView(
-            url = url,
+            url = webViewUrl,
             onBackToQr = { showWebView = false }
         )
     } else {
         PdfQrCodeScreen(
             location = location,
-            url = url,
+            url = resolvedUrl,
+            isResolving = isResolving,
+            errorMessage = resolveError,
             onBack = onBack,
+            onRetry = { resolveAttempt += 1 },
             onOpenInWebView = { showWebView = true }
         )
     }
@@ -73,7 +107,10 @@ internal fun PdfAttachmentScreen(
 private fun PdfQrCodeScreen(
     location: AttachmentLocation,
     url: String?,
+    isResolving: Boolean,
+    errorMessage: String?,
     onBack: () -> Unit,
+    onRetry: () -> Unit,
     onOpenInWebView: () -> Unit
 ) {
     val backRequester = remember { FocusRequester() }
@@ -104,70 +141,101 @@ private fun PdfQrCodeScreen(
                     .heightIn(min = 420.dp)
             ) {
                 Text(location.attachment.title, style = MaterialTheme.typography.h5)
-                if (url == null) {
-                    Text(
-                        "目前沒有有效的 HTTPS PDF 連結。",
-                        style = MaterialTheme.typography.body1,
-                        color = MaterialTheme.colors.error,
-                        modifier = Modifier.padding(top = 14.dp)
-                    )
-                } else {
-                    Text(
-                        "電視內建 WebView 閱讀器（實驗功能）",
-                        style = MaterialTheme.typography.body1,
-                        color = MaterialTheme.colors.secondary,
-                        modifier = Modifier.padding(top = 14.dp)
-                    )
-                    TvAction(
-                        onClick = onOpenInWebView,
-                        modifier = Modifier
-                            .padding(top = 14.dp)
-                            .width(300.dp)
-                    ) {
-                        Text("在 TV 嘗試開啟 PDF")
+                when {
+                    isResolving -> {
+                        Text(
+                            "正在取得可供手機掃描的 PDF 下載連結…",
+                            style = MaterialTheme.typography.body1,
+                            color = MaterialTheme.colors.secondary,
+                            modifier = Modifier.padding(top = 14.dp)
+                        )
                     }
-                    Text(
-                        "WebView 不保證能直接渲染 PDF；若畫面空白或開始下載，請改用右側 QR code。",
-                        style = MaterialTheme.typography.body2,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 12.dp)
-                    )
+                    url == null -> {
+                        Text(
+                            errorMessage ?: "目前沒有有效的 HTTPS PDF 連結。",
+                            style = MaterialTheme.typography.body1,
+                            color = MaterialTheme.colors.error,
+                            modifier = Modifier.padding(top = 14.dp)
+                        )
+                        if (errorMessage != null) {
+                            TvAction(
+                                onClick = onRetry,
+                                modifier = Modifier
+                                    .padding(top = 14.dp)
+                                    .width(300.dp)
+                            ) {
+                                Text("重新取得 PDF 連結")
+                            }
+                        }
+                    }
+                    else -> {
+                        Text(
+                            "電視內建 WebView 閱讀器（實驗功能）",
+                            style = MaterialTheme.typography.body1,
+                            color = MaterialTheme.colors.secondary,
+                            modifier = Modifier.padding(top = 14.dp)
+                        )
+                        TvAction(
+                            onClick = onOpenInWebView,
+                            modifier = Modifier
+                                .padding(top = 14.dp)
+                                .width(300.dp)
+                        ) {
+                            Text("在 TV 嘗試開啟 PDF")
+                        }
+                        Text(
+                            "WebView 不保證能直接渲染 PDF；若畫面空白或開始下載，請改用右側 QR code。",
+                            style = MaterialTheme.typography.body2,
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 12.dp)
+                        )
+                    }
                 }
             }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.width(390.dp)
             ) {
-                if (qrBitmap != null) {
-                    Image(
-                        bitmap = qrBitmap.asImageBitmap(),
-                        contentDescription = "用手機掃描開啟 PDF",
-                        modifier = Modifier.size(350.dp)
-                    )
-                    Text(
-                        "用手機相機掃描 QR code 開啟 PDF",
-                        style = MaterialTheme.typography.body1,
-                        modifier = Modifier.padding(top = 14.dp)
-                    )
-                } else {
-                    Text(
-                        "沒有可產生 QR code 的 PDF URL。",
-                        style = MaterialTheme.typography.body1,
-                        color = MaterialTheme.colors.error
-                    )
+                when {
+                    isResolving -> {
+                        Text(
+                            "正在產生可下載 QR code…",
+                            style = MaterialTheme.typography.body1,
+                            color = MaterialTheme.colors.secondary
+                        )
+                    }
+                    qrBitmap != null -> {
+                        Image(
+                            bitmap = qrBitmap.asImageBitmap(),
+                            contentDescription = "用手機掃描開啟 PDF",
+                            modifier = Modifier.size(350.dp)
+                        )
+                        Text(
+                            "用手機相機掃描 QR code 開啟 PDF",
+                            style = MaterialTheme.typography.body1,
+                            modifier = Modifier.padding(top = 14.dp)
+                        )
+                    }
+                    else -> {
+                        Text(
+                            "目前沒有可用的 PDF QR code。",
+                            style = MaterialTheme.typography.body1,
+                            color = MaterialTheme.colors.error
+                        )
+                    }
                 }
                 Spacer(Modifier.size(18.dp))
                 Text(
-                    "手機與電視需能連線到同一個公開 HTTPS 網址。",
+                    "手機需能連線到 PDF 的公開 HTTPS 網址。",
                     style = MaterialTheme.typography.body2,
                     color = MaterialTheme.colors.onBackground.copy(alpha = 0.72f)
                 )
                 Text(
-                    "正式 QR 請使用穩定 CDN URL；暫時簽名網址可能過期。",
+                    "Notion 附件會先取得暫時下載連結，請在畫面顯示時掃描；過期後可重新取得。",
                     style = MaterialTheme.typography.body2,
                     color = MaterialTheme.colors.secondary,
-                    maxLines = 2,
+                    maxLines = 3,
                     modifier = Modifier.padding(top = 8.dp)
                 )
             }

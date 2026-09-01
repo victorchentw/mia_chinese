@@ -40,7 +40,10 @@ data class Attachment(
     val id: String = "",
     val kind: String = "",
     val title: String = "",
-    val url: String? = null
+    val url: String? = null,
+    /** Notion block metadata used to obtain a fresh URL for private uploaded files. */
+    @SerializedName("notionBlockId") val notionBlockId: String? = null,
+    @SerializedName("notionSpaceId") val notionSpaceId: String? = null
 )
 
 data class VideoItem(

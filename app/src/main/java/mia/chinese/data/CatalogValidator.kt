@@ -70,6 +70,10 @@ object CatalogValidator {
                                 section.attachment.url?.let { url ->
                                     if (!url.startsWith("https://")) {
                                         errors += "attachment ${section.attachment.id} must use HTTPS URL"
+                                    } else if (isNotionFileSource(url) &&
+                                        section.attachment.notionBlockId.isNullOrBlank()
+                                    ) {
+                                        errors += "attachment ${section.attachment.id} is a Notion file but has no notionBlockId"
                                     }
                                 }
                             }
@@ -103,6 +107,15 @@ object CatalogValidator {
         val errors = errors(catalog)
         require(errors.isEmpty()) { "Invalid catalog: ${errors.joinToString("; ")}" }
         return catalog
+    }
+
+    private fun isNotionFileSource(url: String): Boolean {
+        val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+        val host = uri.host?.lowercase() ?: return false
+        val current = host.startsWith("prod-files-secure.s3.") && host.endsWith(".amazonaws.com")
+        val legacy = host.endsWith(".amazonaws.com") &&
+            uri.path?.contains("/secure.notion-static.com/") == true
+        return current || legacy
     }
 
     private fun validateVideo(video: VideoItem, errors: MutableList<String>) {

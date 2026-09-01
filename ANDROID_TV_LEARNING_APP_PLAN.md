@@ -4,7 +4,7 @@
 >
 > 本文件是 `mia_chinese` 的產品與實作規格。它包含原始需求，以及本次 review 補強的播放器風險、非同步狀態、內容更新、穩定 ID、生命週期與「繼續上次進度」流程。
 >
-> **目前狀態（v0.1.17 / versionCode 18）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；API 28 baseline 的 YouTube WebView 仍未通過通用 Go/No-Go，YouTube 播放方式可在設定頁選擇 WebView 或 SmartTube／系統外部播放器。PDF 已加入 TV WebView 實驗頁與手機 QR code；真實目標 TV、媒體搬遷與家長功能仍是後續工作。
+> **目前狀態（v0.1.18 / versionCode 19）**：Phase 0A、Phase 1、Phase 2 與 MP4 播放核心已完成；API 28 baseline 的 YouTube WebView 仍未通過通用 Go/No-Go，YouTube 播放方式可在設定頁選擇 WebView 或 SmartTube／系統外部播放器。PDF 已加入 TV WebView 實驗頁；手機 QR code 會即時取得 Notion 暫時簽名下載網址，避免直接使用失效的 S3 source URL。真實目標 TV、媒體搬遷與家長功能仍是後續工作。
 
 ## 0. Repository 與工作約定
 
@@ -12,7 +12,7 @@
 
 - Git remote：`git@github.com:victorchentw/mia_chinese.git`
 - 本機 canonical working tree：`/mnt/ssd/mia_chinese`
-- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.17` 進行 release hardening。
+- repository 已建立 Android TV 單 module project；目前工作樹以 `v0.1.18` 進行 release hardening。
 - 本文件應放在 repository root：`ANDROID_TV_LEARNING_APP_PLAN.md`。
 - 每個 Phase 完成一個可編譯、可驗收的 commit；沒有明確要求時不自動 push。
 
@@ -295,7 +295,7 @@ lastTextbookId / lastTextbookLessons
 - `video` 轉成可播放卡片，顯示來源、duration（已知時）與 progress。
 - 按影片卡的 `繼續播放` 直接從該影片紀錄的位置開始。
 - `重新開始` 必須是明確的第二 action，不可因為點擊卡片而悄悄重設進度。
-- `pdf` / `file` 顯示附件入口；PDF 頁面可嘗試系統 WebView，並產生 URL QR code 供手機開啟。Android WebView 是否直接 render PDF 必須逐台驗證，不能視為平台保證。
+- `pdf` / `file` 顯示附件入口；PDF 頁面可嘗試系統 WebView，並在 QR 顯示時向 Notion 取得暫時簽名 URL 供手機開啟。Android WebView 是否直接 render PDF 必須逐台驗證，不能視為平台保證。
 
 ### 4.6 播放頁
 
@@ -1125,7 +1125,7 @@ tools/
 4. YouTube 影片是否允許嵌入，以及廣告與官方控制列是否可接受。
 5. 是否將探索 build 的 WebView-first + 外部 fallback 流程直接作為 sideload 發布策略，或改用 `-PmiaEnableYoutubeWebView=false` 的 MP4-only 版本。
 6. YouTube No-Go 時是否允許 SmartTube／系統外部播放器 fallback；外部播放器不提供 App 內精確續播。
-7. PDF 是否接受 TV WebView 實驗結果；正式 fallback 為手機 QR code，且 QR 只能使用穩定、公開 HTTPS URL。
+7. PDF 是否接受 TV WebView 實驗結果；正式 fallback 為手機 QR code，QR 應使用穩定 CDN URL，或在掃描前即時取得的公開 HTTPS 簽名 URL。
 8. App 是自家 TV sideload APK，還是未來發布到 Google Play。
 9. 影片播放到結尾後是否永遠停留在完成畫面；MVP 預設不自動播放下一部。
 

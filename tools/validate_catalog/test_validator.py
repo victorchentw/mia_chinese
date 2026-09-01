@@ -14,6 +14,28 @@ class CatalogToolTest(unittest.TestCase):
         catalog = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual([], validate_catalog(catalog))
 
+    def test_notion_file_references_have_permission_metadata(self):
+        path = Path(__file__).parents[2] / "app/src/main/assets/catalog/lessons.json"
+        catalog = json.loads(path.read_text(encoding="utf-8"))
+        attachments = [
+            section["attachment"]
+            for edition in catalog["editions"]
+            for course in edition["courses"]
+            for section in course["sections"]
+            if section.get("type") == "attachment" and section.get("attachment")
+        ]
+        notion_files = [
+            attachment
+            for attachment in attachments
+            if (
+                "prod-files-secure.s3." in attachment.get("url", "")
+                or "secure.notion-static.com" in attachment.get("url", "")
+            )
+        ]
+        self.assertTrue(notion_files)
+        self.assertTrue(all(attachment.get("notionBlockId") for attachment in notion_files))
+        self.assertTrue(all(attachment.get("notionSpaceId") for attachment in notion_files))
+
     def test_youtube_url_forms_are_normalized(self):
         cases = {
             "https://www.youtube.com/watch?v=XPvJgDZ06A8": "XPvJgDZ06A8",

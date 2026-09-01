@@ -1,6 +1,6 @@
 # Mia Chinese TV
 
-Android TV 國文影片課學習 App，版本 `v0.1.17`。
+Android TV 國文影片課學習 App，版本 `v0.1.18`。
 
 ## Pi agent mandatory workflow
 
@@ -19,7 +19,7 @@ Android TV 國文影片課學習 App，版本 `v0.1.17`。
 
 若只需要檢查、不應產生 repository 修改，必須明確說明，不要偷偷修改版本。
 
-## Current v0.1.17 scope
+## Current v0.1.18 scope
 
 - Android TV / Google TV，min SDK 28
 - TV launcher icon：沿用 Mia bird 視覺，文字改為「米亞的國文」
@@ -38,7 +38,7 @@ python3 tools/notion_import/import_public_catalog.py \
   --output app/src/main/assets/catalog/lessons.json
 ```
 
-Notion 上傳影片／附件仍需後續搬移至穩定 CDN；YouTube 內嵌播放仍受 Phase 0B Go/No-Go 限制，播放方式可在設定頁切換為 WebView 或 SmartTube／系統外部播放器。PDF 附件可在 TV 嘗試 WebView，並提供手機 QR code；目前 Android TV WebView 不保證原生 PDF render。Phase 0B 測試結果記錄於 [`YOUTUBE_GO_NO_GO.md`](YOUTUBE_GO_NO_GO.md)。
+Notion 上傳影片／附件仍需後續搬移至穩定 CDN；YouTube 內嵌播放仍受 Phase 0B Go/No-Go 限制，播放方式可在設定頁切換為 WebView 或 SmartTube／系統外部播放器。PDF 附件可在 TV 嘗試 WebView；手機 QR code 會在顯示時向 Notion 取得暫時簽名下載網址，避免直接使用回傳 403 的 S3 source URL。Android TV WebView 仍不保證原生 PDF render。Phase 0B 測試結果記錄於 [`YOUTUBE_GO_NO_GO.md`](YOUTUBE_GO_NO_GO.md)。
 
 驗證已產生的 catalog（不會對媒體發出網路請求）：
 

@@ -3,7 +3,8 @@
 
 The importer only reads a public Notion page. It does not read or write any
 credentials. Notion-hosted file URLs are kept as source references until the
-media migration to a managed CDN is completed.
+media migration to a managed CDN is completed, together with the public block
+metadata needed to request a temporary download URL.
 """
 
 from __future__ import annotations
@@ -272,6 +273,13 @@ def import_catalog(page_id: str, host: str, workers: int) -> dict:
                     }
                     if source:
                         attachment["url"] = source
+                        # Notion's S3 source references are private. Keep the
+                        # permission record so the TV app can request a fresh,
+                        # short-lived download URL when it renders a QR code.
+                        space_id = str(block.get("space_id") or "").strip()
+                        if space_id:
+                            attachment["notionBlockId"] = block_id
+                            attachment["notionSpaceId"] = space_id
                     sections.append(
                         {
                             "id": section_id,

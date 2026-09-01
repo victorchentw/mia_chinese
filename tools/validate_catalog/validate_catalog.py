@@ -11,12 +11,21 @@ import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 try:
     from .range_probe import probe_range
 except ImportError:  # direct `python validate_catalog.py` execution
     from range_probe import probe_range
 
 YOUTUBE_ID = re.compile(r"^[A-Za-z0-9_-]{6,}$")
+
+
+def is_notion_file_source(url: str) -> bool:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    current = host.startswith("prod-files-secure.s3.") and host.endswith(".amazonaws.com")
+    legacy = host.endswith(".amazonaws.com") and "/secure.notion-static.com/" in (parsed.path or "")
+    return current or legacy
 
 
 def validate_catalog(catalog: dict) -> list[str]:
@@ -105,8 +114,16 @@ def validate_catalog(catalog: dict) -> list[str]:
                         check_id(attachment.get("id"), "attachment")
                         if not str(attachment.get("title", "")).strip():
                             errors.append(f"attachment {attachment.get('id')} title is blank")
-                        if attachment.get("url") and not str(attachment["url"]).startswith("https://"):
-                            errors.append(f"attachment {attachment.get('id')} must use HTTPS URL")
+                        if attachment.get("url"):
+                            attachment_url = str(attachment["url"])
+                            if not attachment_url.startswith("https://"):
+                                errors.append(f"attachment {attachment.get('id')} must use HTTPS URL")
+                            elif is_notion_file_source(attachment_url) and not str(
+                                attachment.get("notionBlockId", "")
+                            ).strip():
+                                errors.append(
+                                    f"attachment {attachment.get('id')} is a Notion file but has no notionBlockId"
+                                )
                     if video is not None:
                         errors.append(f"attachment section {section.get('id')} must not have video")
                 elif section_type in {"heading", "note"}:
